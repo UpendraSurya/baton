@@ -15,14 +15,19 @@ worst-case hops, unreachable agents and dead ends, all offline and free.
     if not est.feasible:
         print(est.problems)
 """
-from dataclasses import dataclass, field
+from __future__ import annotations
 
-from baton.charter import Charter
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Mapping
+
+if TYPE_CHECKING:
+    from baton.agent import AgentSpec
+    from baton.charter import Charter
 
 # A hop can spend two calls: the dispatch plus one repair retry.
-CALLS_PER_HOP = 2
+CALLS_PER_HOP: int = 2
 # The hop cap may be exceeded by one forced gate verdict.
-FORCED_GATE_HOPS = 1
+FORCED_GATE_HOPS: int = 1
 
 
 @dataclass
@@ -32,12 +37,12 @@ class Estimate:
     worst_case_usd: float
     ceiling_usd: float
     feasible: bool
-    problems: tuple = ()
-    warnings: tuple = ()
-    unreachable: tuple = ()
-    dead_ends: tuple = ()
+    problems: tuple[str, ...] = ()
+    warnings: tuple[str, ...] = ()
+    unreachable: tuple[str, ...] = ()
+    dead_ends: tuple[str, ...] = ()
 
-    def render(self):
+    def render(self) -> str:
         lines = [
             f"worst case : {self.worst_case_hops} hops, "
             f"{self.worst_case_calls} calls, ${self.worst_case_usd:.2f}",
@@ -51,7 +56,8 @@ class Estimate:
         return "\n".join(lines)
 
 
-def reachable_from(entry, agents, charter):
+def reachable_from(entry: str, agents: Mapping[str, AgentSpec],
+                   charter: Charter) -> set[str]:
     """Every agent the run can actually arrive at, following whitelists."""
     seen, frontier = {entry}, [entry]
     while frontier:
@@ -68,7 +74,8 @@ def reachable_from(entry, agents, charter):
     return seen
 
 
-def estimate(charter, agents, usd_per_call=0.0):
+def estimate(charter: Charter, agents: Mapping[str, AgentSpec],
+             usd_per_call: float = 0.0) -> Estimate:
     """Worst-case cost and shape of a run, before it starts.
 
     usd_per_call is the caller's expected cost of ONE model call. Pass the most

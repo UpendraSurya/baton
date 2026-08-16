@@ -10,9 +10,12 @@ A provider is a factory: it takes credentials and settings, and returns the sing
 Everything vendor-specific — URL shape, payload shape, where the token counts live,
 the rate card — is confined to one small module per vendor.
 """
+from __future__ import annotations
+
 import json
 import os
 import time
+from typing import Any, Callable, Mapping
 import urllib.error
 import urllib.request
 
@@ -22,12 +25,12 @@ from baton.errors import BatonError
 # at the one real network path, rather than per provider — a guard every author
 # has to remember to add is a guard that eventually gets forgotten. Injected
 # transports in tests never come through here, so the suite is unaffected.
-FORBID_ENV = "BATON_FORBID_REAL_DISPATCH"
+FORBID_ENV: str = "BATON_FORBID_REAL_DISPATCH"
 
 # Bounded, like every loop in this library: three attempts, then give up and let
 # the runtime record a dispatch_failure. An unbounded retry on a 429 is how a
 # "cheap" test run turns into an afternoon of silent backoff.
-MAX_ATTEMPTS = 3
+MAX_ATTEMPTS: int = 3
 BACKOFF_SECONDS = (1.0, 4.0)
 RETRY_STATUSES = (408, 429, 500, 502, 503, 504)
 
@@ -36,7 +39,9 @@ class ProviderError(BatonError):
     """The provider could not be reached, or answered with something unusable."""
 
 
-def http_json(url, payload, headers=None, timeout=120, _sleep=time.sleep):
+def http_json(url: str, payload: dict[str, Any],
+              headers: Mapping[str, str] | None = None, timeout: float = 120,
+              _sleep: Callable[[float], None] = time.sleep) -> dict[str, Any]:
     """POST json, get json back. Retries only what is worth retrying.
 
     Returns the decoded response dict. Raises ProviderError on a non-retryable
@@ -87,7 +92,8 @@ class UnmeteredModel(ProviderError):
     """
 
 
-def cost_from_tokens(prices, model, in_tokens, out_tokens):
+def cost_from_tokens(prices: Mapping[str, Mapping[str, float]], model: str,
+                     in_tokens: int, out_tokens: int) -> float:
     """Rate cards are quoted per MILLION tokens. Divide by 1e6 exactly once.
 
     One place to get that arithmetic right, because getting it wrong is silent:
@@ -103,7 +109,7 @@ def cost_from_tokens(prices, model, in_tokens, out_tokens):
     return (in_tokens * rate["in"] + out_tokens * rate["out"]) / 1_000_000
 
 
-def approx_tokens(text):
+def approx_tokens(text: str | None) -> int:
     """A rough count for providers that do not report usage. ~4 chars per token.
 
     Only ever a fallback. Anything that reports real usage must use the real

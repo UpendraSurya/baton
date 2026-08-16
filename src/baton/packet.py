@@ -16,6 +16,8 @@ So content may travel — but only for the freshest artifacts. `runtime._merge_a
 strips content from carried artifacts and keeps it only on ones produced this hop,
 which bounds per-hop cost by one deliverable instead of by the whole history.
 """
+from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import Enum
 
@@ -28,7 +30,7 @@ class Kind(str, Enum):
 
 
 # One deliverable's worth. Past this the packet stops being a packet.
-MAX_CONTENT_CHARS = 8000
+MAX_CONTENT_CHARS: int = 8000
 
 
 @dataclass(frozen=True)
@@ -38,22 +40,22 @@ class ArtifactRef:
     preview: str = ""
     content: str = ""          # the work product itself, when there is no shared disk
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if len(self.content) > MAX_CONTENT_CHARS:
             object.__setattr__(
                 self, "content",
                 self.content[:MAX_CONTENT_CHARS] + "\n… [truncated]")
 
-    def without_content(self):
+    def without_content(self) -> ArtifactRef:
         """The same reference, reduced to a pointer. Used when an artifact stops
         being this hop's deliverable and becomes history."""
         return ArtifactRef(self.path, self.description, self.preview)
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {"path": self.path, "description": self.description,
                 "preview": self.preview, "content": self.content}
 
-    def render(self):
+    def render(self) -> str:
         head = f"- `{self.path}`"
         if self.description:
             head += f" — {self.description}"
@@ -74,12 +76,12 @@ class Baton:
     to_agent: str
     goal: str
     rationale: str = ""
-    artifacts: tuple = ()
-    open_questions: tuple = ()
+    artifacts: tuple[ArtifactRef, ...] = ()
+    open_questions: tuple[str, ...] = ()
     stall_notice: str = ""
-    flags: tuple = ()
+    flags: tuple[str, ...] = ()
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {
             "trace_id": self.trace_id, "hop": self.hop,
             "from_agent": self.from_agent, "to_agent": self.to_agent,
@@ -89,7 +91,7 @@ class Baton:
             "stall_notice": self.stall_notice, "flags": list(self.flags),
         }
 
-    def render(self):
+    def render(self) -> str:
         """The baton as the receiving agent sees it. Empty sections are omitted —
         every line here is re-sent on every hop."""
         out = [f"## Your baton (hop {self.hop}, from {self.from_agent})",
@@ -117,9 +119,9 @@ class Decision:
     rationale: str = ""
     summary: str = ""
     reason: str = ""
-    artifacts: tuple = ()
+    artifacts: tuple[ArtifactRef, ...] = ()
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {"decision": self.kind.value, "to": self.to, "goal": self.goal,
                 "rationale": self.rationale, "summary": self.summary,
                 "reason": self.reason,

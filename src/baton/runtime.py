@@ -9,28 +9,46 @@ The dispatch seam is one callable: dispatch(agent, baton, prompt) -> DispatchRes
 That is the entire contract between this kernel and whatever actually runs a model,
 and it is why kernel/ imports nothing.
 """
+from __future__ import annotations
+
 import uuid
 from dataclasses import dataclass, field
+from typing import Callable, Mapping, Optional, Protocol
 
 from baton.agent import AgentSpec
-from baton.packet import Baton, Kind
+from baton.charter import Charter
+from baton.packet import ArtifactRef, Baton, Kind
 from baton.contract import (parse_decision, render_prompt, repair_nudge,
                              validate_decision)
 from baton.errors import (BatonError, CharterInvalid, IllegalTarget,
                            ParseFailure, RoleViolation)
-from baton.trace import MemoryTrace
+from baton.trace import MemoryTrace, TraceSink
 
-TERMINAL_REASONS = ("ratified", "budget_exhausted", "hops_exhausted", "stalled",
+TERMINAL_REASONS: tuple[str, ...] = ("ratified", "budget_exhausted", "hops_exhausted", "stalled",
                     "dispatch_failure", "charter_violation", "reject_cap_reached")
 
 # A run that reaches this has lost a stop rule. It is not a stop rule itself — it
 # is the alarm that says one is missing, and it raises rather than terminating so
 # a deleted guard shows up as a loud failure instead of a plausible result.
-_ABSOLUTE_MAX_HOPS = 200
+_ABSOLUTE_MAX_HOPS: int = 200
+
+
+class Dispatch(Protocol):
+    """The entire contract between baton and whatever runs a model.
+
+    Implement this — or just pass a plain function with this signature — and the
+    runtime can drive any model, framework or remote service. It is why this
+    package has no dependencies.
+    """
+
+    def __call__(self, agent: "AgentSpec", baton: Baton,
+                 prompt: str) -> "DispatchResult": ...
 
 
 @dataclass
 class DispatchResult:
+    """What one agent execution produced. `error` non-empty ends the run."""
+
     text: str = ""
     cost_usd: float = 0.0
     in_tokens: int = 0
@@ -57,15 +75,17 @@ class Guards:
 
 @dataclass
 class RunResult:
+    """The outcome of a run. `terminal_reason` is always one of TERMINAL_REASONS."""
+
     trace_id: str
     terminal_reason: str
     hops: int
     spend_usd: float
     gate_summary: str = ""
     note: str = ""
-    path: tuple = ()
-    last_baton: object = None
-    trace: object = None
+    path: tuple[str, ...] = ()
+    last_baton: Optional[Baton] = None
+    trace: Optional[TraceSink] = None
 
 
 @dataclass
@@ -75,15 +95,16 @@ class _State:
     in_tokens: int = 0
     out_tokens: int = 0
     pressure: bool = False
-    path: list = field(default_factory=list)
-    pairs: list = field(default_factory=list)
-    rejects: dict = field(default_factory=dict)
+    path: list[str] = field(default_factory=list)
+    pairs: list[tuple[str, str]] = field(default_factory=list)
+    rejects: dict[str, int] = field(default_factory=dict)
     last_proposer: str = ""
 
 
 # --- helpers -----------------------------------------------------------------
 
-def _merge_artifacts(carried, produced):
+def _merge_artifacts(carried: tuple[ArtifactRef, ...],
+                     produced: tuple[ArtifactRef, ...]) -> tuple[ArtifactRef, ...]:
     """Later artifacts win on the same path; earlier ones keep travelling.
 
     Carried artifacts are stripped to pointers and only the ones produced THIS
@@ -108,7 +129,8 @@ def _gate_baton(charter, trace_id, st, from_agent, carried, goal, artifacts=(),
                  flags=tuple(flags))
 
 
-def _finish(trace, st, reason, baton, gate_summary="", note=""):
+def _finish(trace: TraceSink, st: _State, reason: str, baton: Baton,
+            gate_summary: str = "", note: str = "") -> RunResult:
     if reason not in TERMINAL_REASONS:
         raise BatonError(f"{reason!r} is not a terminal reason")
     trace.append({"event": "run_end", "terminal_reason": reason, "hops": st.hop,
@@ -178,7 +200,7 @@ def _forced_gate_verdict(charter, agents, dispatch, st, baton, trace, guards,
                    note=f"ratified on a forced gate call ({reason})")
 
 
-def _check_roster(charter, agents):
+def _check_roster(charter: Charter, agents: Mapping[str, AgentSpec]) -> None:
     missing = set(charter.agent_pool) - set(agents)
     if missing:
         raise CharterInvalid(f"agent_pool names agents with no spec: {sorted(missing)}")
@@ -194,7 +216,27 @@ def _check_roster(charter, agents):
 
 # --- the loop ----------------------------------------------------------------
 
-def run(charter, agents, dispatch, *, trace=None, guards=None, trace_id=None):
+def run(charter: Charter, agents: Mapping[str, AgentSpec], dispatch: Dispatch, *,
+        trace: Optional[TraceSink] = None, guards: Optional[Guards] = None,
+        trace_id: Optional[str] = None) -> RunResult:
+    """Run a multi-agent task in which the agents choose who goes next.
+
+    Args:
+        charter: the constraint envelope — budget, hops, pool, acceptance criteria.
+        agents: name -> AgentSpec for every agent in the charter's pool.
+        dispatch: callable that actually runs one agent. See `Dispatch`.
+        trace: where hops are recorded. Any `TraceSink`; defaults to in-memory.
+        guards: which defences are active. Defaults to all of them.
+        trace_id: correlation id; generated when omitted.
+
+    Returns:
+        RunResult, whose `terminal_reason` is always one of TERMINAL_REASONS.
+
+    Raises:
+        CharterInvalid: the charter or roster does not describe a runnable run.
+        BatonError: the absolute hop backstop was reached, which means a stop
+            rule was disabled.
+    """
     charter.validate()
     _check_roster(charter, agents)
     guards = guards or Guards()

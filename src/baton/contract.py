@@ -11,13 +11,20 @@ the overlapping-guards pattern that has produced vacuous tests before, so both
 guards are individually switchable — `include_legal_moves` and `enforce_target` —
 and tests/test_anti_vacuity.py deletes each one alone to prove it is load-bearing.
 """
+from __future__ import annotations
+
 import json
 import re
+from typing import TYPE_CHECKING, Any, Sequence
 
-from baton.packet import ArtifactRef, Decision, Kind
+from baton.packet import ArtifactRef, Baton, Decision, Kind
 from baton.errors import IllegalTarget, ParseFailure, RoleViolation
 
-PRESSURE_LINE = ("> **Budget pressure:** this run is near its ceiling — prefer "
+if TYPE_CHECKING:
+    from baton.agent import AgentSpec
+    from baton.charter import Charter
+
+PRESSURE_LINE: str = ("> **Budget pressure:** this run is near its ceiling — prefer "
                  "completing the work over delegating it further.")
 
 WORKER_VERBS = (Kind.HANDOFF, Kind.PROPOSE_DONE)
@@ -31,7 +38,8 @@ _TRAILING_COMMA = re.compile(r",\s*([}\]])")
 
 # --- rendering ---------------------------------------------------------------
 
-def render_routing_contract(agent, charter, *, include_legal_moves=True):
+def render_routing_contract(agent: AgentSpec, charter: Charter, *,
+                            include_legal_moves: bool = True) -> str:
     """The block appended to every prompt. Generated from THIS agent's whitelist.
 
     include_legal_moves=False removes guard A (the rendered whitelist) and exists
@@ -92,8 +100,9 @@ def render_routing_contract(agent, charter, *, include_legal_moves=True):
     return "\n".join(out)
 
 
-def render_prompt(agent, baton, charter, *, pressure=False,
-                  include_legal_moves=True, nudge=""):
+def render_prompt(agent: AgentSpec, baton: Baton, charter: Charter, *,
+                  pressure: bool = False, include_legal_moves: bool = True,
+                  nudge: str = "") -> str:
     """persona -> baton -> charter bounds -> routing contract -> (nudge).
 
     Never the conversation history: artifact paths and previews travel, contents
@@ -114,7 +123,7 @@ def render_prompt(agent, baton, charter, *, pressure=False,
     return "\n".join(parts)
 
 
-def repair_nudge(reason, agent, charter):
+def repair_nudge(reason: str, agent: AgentSpec, charter: Charter) -> str:
     """One terse correction. Nothing else is re-sent — a full re-render doubles
     the cost of a hop that has already failed once."""
     moves = ", ".join(charter.legal_moves_for(agent)) or "(nobody)"
@@ -125,13 +134,13 @@ def repair_nudge(reason, agent, charter):
 
 # --- parsing -----------------------------------------------------------------
 
-def _clean(raw):
+def _clean(raw: str) -> str:
     for bad, good in _SMART.items():
         raw = raw.replace(bad, good)
     return _TRAILING_COMMA.sub(r"\1", raw).strip()
 
 
-def _candidates(text):
+def _candidates(text: str) -> list[str]:
     """Every plausible decision payload, in document order. Fenced blocks first;
     a bare trailing object only if no fence produced anything."""
     found = [m.group(1) for m in _FENCED.finditer(text)]
@@ -141,7 +150,7 @@ def _candidates(text):
     return [m.group(0)] if m else []
 
 
-def _artifacts(raw):
+def _artifacts(raw: Sequence[Any] | None) -> tuple[ArtifactRef, ...]:
     out = []
     for item in raw or ():
         if isinstance(item, dict):
@@ -158,7 +167,7 @@ def _artifacts(raw):
     return tuple(out)
 
 
-def parse_decision(text):
+def parse_decision(text: str) -> Decision:
     """The LAST parseable block wins — agents show their working, then commit."""
     if not text or not text.strip():
         raise ParseFailure("agent produced no output")
@@ -190,7 +199,8 @@ def parse_decision(text):
 
 # --- validating --------------------------------------------------------------
 
-def validate_decision(decision, agent, charter, *, enforce_target=True):
+def validate_decision(decision: Decision, agent: AgentSpec, charter: Charter,
+                      *, enforce_target: bool = True) -> Decision:
     """Return the decision, or raise. enforce_target=False removes guard B (the
     post-parse whitelist check) and exists so the anti-vacuity suite can measure
     it alone. It never disables the ROLE check — that is a different guard, and

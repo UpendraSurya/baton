@@ -17,9 +17,16 @@ Or let it read GEMINI_API_KEY / GOOGLE_API_KEY from the environment:
 Call `gemini.list_models(api_key)` first if you want to confirm the key works and
 see exactly which model names your key can reach. That call is free.
 """
-import os
+from __future__ import annotations
 
-from baton.runtime import DispatchResult
+import os
+from typing import TYPE_CHECKING, Any, Callable, Mapping
+
+from baton.runtime import Dispatch, DispatchResult
+
+if TYPE_CHECKING:
+    from baton.agent import AgentSpec
+    from baton.packet import Baton
 
 from baton.providers.base import (ProviderError, UnmeteredModel, approx_tokens,
                                   cost_from_tokens, http_json)
@@ -28,7 +35,7 @@ ENDPOINT = ("https://generativelanguage.googleapis.com/v1beta/models/"
             "{model}:generateContent")
 LIST_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models"
 
-MODEL = "gemini-2.5-flash"
+MODEL: str = "gemini-2.5-flash"
 KEY_ENV_VARS = ("GEMINI_API_KEY", "GOOGLE_API_KEY")
 
 # USD per 1,000,000 tokens. VERIFY THESE against the live rate card before you
@@ -44,7 +51,7 @@ PRICES = {
 }
 
 
-def resolve_key(api_key=None):
+def resolve_key(api_key: str | None = None) -> str:
     if api_key:
         return api_key
     for name in KEY_ENV_VARS:
@@ -56,7 +63,8 @@ def resolve_key(api_key=None):
         + " / ".join(KEY_ENV_VARS))
 
 
-def list_models(api_key=None, transport=None):
+def list_models(api_key: str | None = None,
+                transport: Callable[[str], dict[str, Any]] | None = None) -> list[str]:
     """Names your key can actually reach. Free, and the cheapest way to prove a
     key works before spending anything on generation."""
     key = resolve_key(api_key)
@@ -69,14 +77,14 @@ def list_models(api_key=None, transport=None):
     return sorted(n for n in out if n)
 
 
-def _get_json(url):
+def _get_json(url: str) -> dict[str, Any]:
     import json as _json
     import urllib.request
     with urllib.request.urlopen(url, timeout=30) as resp:
         return _json.loads(resp.read().decode("utf-8"))
 
 
-def _extract_text(data):
+def _extract_text(data: Mapping[str, Any]) -> str:
     """Pull the model's text out, and say plainly why it is missing if it is.
 
     A blocked or truncated response is not an empty string — treating it as one
@@ -98,7 +106,7 @@ def _extract_text(data):
     return text
 
 
-def _usage(data, prompt, text):
+def _usage(data: Mapping[str, Any], prompt: str, text: str) -> tuple[int, int]:
     u = data.get("usageMetadata") or {}
     in_tok = u.get("promptTokenCount")
     out_tok = u.get("candidatesTokenCount")
@@ -109,8 +117,12 @@ def _usage(data, prompt, text):
     return int(in_tok), int(out_tok)
 
 
-def provider(api_key=None, model=MODEL, *, temperature=0.2, max_output_tokens=8192,
-             timeout=120, prices=None, transport=http_json, system_instruction=None):
+def provider(api_key: str | None = None, model: str = MODEL, *,
+             temperature: float = 0.2, max_output_tokens: int = 8192,
+             timeout: float = 120,
+             prices: Mapping[str, Mapping[str, float]] | None = None,
+             transport: Callable[..., dict[str, Any]] = http_json,
+             system_instruction: str | None = None) -> Dispatch:
     """Build the dispatch callable `baton.run` needs.
 
     transport is injectable so the whole provider can be tested offline — the
@@ -128,7 +140,7 @@ def provider(api_key=None, model=MODEL, *, temperature=0.2, max_output_tokens=81
             "tokens) — without it the budget ceiling cannot bound the run")
     url = ENDPOINT.format(model=model) + f"?key={key}"
 
-    def dispatch(agent, baton, prompt):
+    def dispatch(agent: AgentSpec, baton: Baton, prompt: str) -> DispatchResult:
         payload = {
             "contents": [{"role": "user", "parts": [{"text": prompt}]}],
             "generationConfig": {

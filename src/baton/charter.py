@@ -8,11 +8,17 @@ would have deleted those too, so they move here: bounds without edges.
 acceptance_criteria are required and are written BEFORE the run, so the gate agent
 cannot be talked into lowering the bar halfway through.
 """
+from __future__ import annotations
+
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from baton.errors import CharterInvalid
 
-TIERS = ("L", "M", "H")
+if TYPE_CHECKING:                     # avoids a cycle; agent does not import charter
+    from baton.agent import AgentSpec
+
+TIERS: tuple[str, ...] = ("L", "M", "H")
 
 
 @dataclass(frozen=True)
@@ -20,15 +26,15 @@ class Charter:
     brief: str
     entry_agent: str
     gate_agent: str
-    agent_pool: frozenset
-    acceptance_criteria: tuple
+    agent_pool: frozenset[str]
+    acceptance_criteria: tuple[str, ...]
     budget_ceiling_usd: float = 5.0
     max_hops: int = 12
     security_tier: str = "M"
     max_rejects_per_agent: int = 2
     pressure_threshold: float = 0.8
 
-    def validate(self):
+    def validate(self) -> None:
         """Raise CharterInvalid unless this describes a runnable run."""
         if not self.brief.strip():
             raise CharterInvalid("brief is empty")
@@ -55,14 +61,14 @@ class Charter:
         if not 0 < self.pressure_threshold <= 1:
             raise CharterInvalid("pressure_threshold must be in (0, 1]")
 
-    def legal_moves_for(self, agent):
+    def legal_moves_for(self, agent: AgentSpec) -> tuple[str, ...]:
         """The agent's own whitelist, intersected with this run's pool, sorted.
 
         Sorted because an unstable order rewrites the prompt on every hop and
         quietly destroys prompt-cache hits."""
         return tuple(sorted(agent.can_hand_to & self.agent_pool))
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {"brief": self.brief, "entry_agent": self.entry_agent,
                 "gate_agent": self.gate_agent,
                 "agent_pool": sorted(self.agent_pool),
