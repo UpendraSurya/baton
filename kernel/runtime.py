@@ -150,6 +150,29 @@ def _hop(agent, baton, charter, st, dispatch, guards, trace):
     return None, failure
 
 
+def _forced_gate_verdict(charter, agents, dispatch, st, baton, trace, guards,
+                         reason, goal):
+    """One final call to the gate so the run ends JUDGED, not merely stopped.
+
+    Costs one more hop than max_hops on purpose: a bare timeout tells you nothing
+    about whether the work was any good, and that is the question being asked.
+    """
+    gate = agents[charter.gate_agent]
+    gate_baton = _gate_baton(charter, trace.trace_id, st,
+                             baton.from_agent or "runtime", baton.artifacts,
+                             goal=goal, flags=(reason,))
+    st.hop += 1
+    st.path.append(gate.name)
+    trace.append({"event": "forced_gate", "hop": st.hop, "reason": reason})
+    decision, failure = _hop(gate, gate_baton, charter, st, dispatch, guards, trace)
+    if failure or decision.kind is not Kind.RATIFY:
+        return _finish(trace, st, reason, gate_baton,
+                       gate_summary=(decision.reason if decision else ""),
+                       note=f"forced gate verdict after {reason}")
+    return _finish(trace, st, "ratified", gate_baton, gate_summary=decision.summary,
+                   note=f"ratified on a forced gate call ({reason})")
+
+
 def _check_roster(charter, agents):
     missing = set(charter.agent_pool) - set(agents)
     if missing:
@@ -184,6 +207,14 @@ def run(charter, agents, dispatch, *, trace=None, guards=None, trace_id=None):
             raise BatonError(
                 f"absolute backstop: {_ABSOLUTE_MAX_HOPS} hops with no terminal "
                 "reason — a stop rule is missing or disabled")
+
+        # Killer 1: never-done.
+        if guards.hops and st.hop >= charter.max_hops:
+            return _forced_gate_verdict(
+                charter, agents, dispatch, st, baton, trace, guards,
+                "hops_exhausted",
+                "This run is out of hops. Assess what exists against the "
+                "acceptance criteria and give a verdict.")
 
         agent = agents[baton.to_agent]
         st.hop += 1
