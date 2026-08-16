@@ -90,6 +90,26 @@ else
 fi
 
 # --------------------------------------------------------------------------- #
+head_ "5. Tier-2 wiring (dry run only — tier 2 itself is never run here)"
+
+if [ -f "$HOME/.unlimited-os/state.db" ]; then
+  if OUT=$(python3 bench/replay.py --selftest 2>&1); then
+    ok "bench/replay.py --selftest (stub model, \$0)"
+  else
+    bad "bench/replay.py --selftest" "$(echo "$OUT" | tail -10)"
+  fi
+else
+  printf '  skip  fork corpus absent — replay wiring unproven\n'
+fi
+
+# A replay that runs without an explicit flag is a bill waiting to happen.
+if python3 bench/replay.py -n 1 >/dev/null 2>&1; then
+  bad "replay ran with no flag" "tier 2 must never start by accident"
+else
+  ok "replay refuses to run without --dry-run or --confirm-spend"
+fi
+
+# --------------------------------------------------------------------------- #
 printf '\n=====================================\n'
 printf 'passed %d   failed %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] && { printf 'VERIFY: PASS\n'; exit 0; } || { printf 'VERIFY: FAIL\n'; exit 1; }
