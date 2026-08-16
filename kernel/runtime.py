@@ -263,6 +263,16 @@ def run(charter, agents, dispatch, *, trace=None, guards=None, trace_id=None):
         if decision.kind is Kind.REJECT:
             proposer = st.last_proposer or decision.to
             st.rejects[proposer] = st.rejects.get(proposer, 0) + 1
+            # An uncapped REJECT is a second infinite loop hiding behind the
+            # first. Past the cap the gate must ratify or route elsewhere.
+            if (guards.reject_cap
+                    and decision.to == proposer
+                    and st.rejects[proposer] > charter.max_rejects_per_agent):
+                return _finish(trace, st, "reject_cap_reached", baton,
+                               note=(f"the gate rejected {proposer} "
+                                     f"{st.rejects[proposer]} times; after "
+                                     f"{charter.max_rejects_per_agent} it must "
+                                     "ratify or route to a different agent"))
             baton = Baton(trace_id=trace.trace_id, hop=st.hop,
                           from_agent=agent.name, to_agent=decision.to,
                           goal=decision.reason or "address the gate's findings",
