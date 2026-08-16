@@ -2,11 +2,19 @@
 baton.packet — the packet that travels between agents, and the decision that
 mints the next one.
 
-Artifacts carry a PATH, a one-line description and the producing agent's own
-2-3 line preview — never file contents. Agents already have file tools scoped to
-the workspace, so the packet only needs enough for the receiver to decide whether
-opening the file is worth it. That is what keeps per-hop cost flat instead of
-growing with every earlier turn.
+Artifacts carry a PATH, a one-line description, the producing agent's own 2-3
+line preview, and optionally the CONTENT itself.
+
+The original design carried paths only, on the assumption that every agent has
+file tools scoped to a shared workspace and can open anything it is pointed at.
+That holds inside a host application; it is false for a library user whose agents
+share no filesystem. Live evidence (2026-08-16): with paths only, a worker sent
+PROPOSE_DONE naming a file it had never written, and the gate ratified the
+worker's *claim* about a deliverable that did not exist anywhere.
+
+So content may travel — but only for the freshest artifacts. `runtime._merge_artifacts`
+strips content from carried artifacts and keeps it only on ones produced this hop,
+which bounds per-hop cost by one deliverable instead of by the whole history.
 """
 from dataclasses import dataclass
 from enum import Enum
@@ -19,15 +27,31 @@ class Kind(str, Enum):
     REJECT = "REJECT"
 
 
+# One deliverable's worth. Past this the packet stops being a packet.
+MAX_CONTENT_CHARS = 8000
+
+
 @dataclass(frozen=True)
 class ArtifactRef:
     path: str
     description: str = ""
     preview: str = ""
+    content: str = ""          # the work product itself, when there is no shared disk
+
+    def __post_init__(self):
+        if len(self.content) > MAX_CONTENT_CHARS:
+            object.__setattr__(
+                self, "content",
+                self.content[:MAX_CONTENT_CHARS] + "\n… [truncated]")
+
+    def without_content(self):
+        """The same reference, reduced to a pointer. Used when an artifact stops
+        being this hop's deliverable and becomes history."""
+        return ArtifactRef(self.path, self.description, self.preview)
 
     def to_dict(self):
         return {"path": self.path, "description": self.description,
-                "preview": self.preview}
+                "preview": self.preview, "content": self.content}
 
     def render(self):
         head = f"- `{self.path}`"
@@ -36,6 +60,9 @@ class ArtifactRef:
         if self.preview:
             body = "\n".join("    " + ln for ln in self.preview.strip().splitlines())
             head += "\n" + body
+        if self.content:
+            head += ("\n\n  <<<CONTENT of " + self.path + ">>>\n"
+                     + self.content + "\n  <<<END " + self.path + ">>>")
         return head
 
 

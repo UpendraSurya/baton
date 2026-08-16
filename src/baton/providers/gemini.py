@@ -21,8 +21,8 @@ import os
 
 from baton.runtime import DispatchResult
 
-from baton.providers.base import (ProviderError, approx_tokens, cost_from_tokens,
-                                  http_json)
+from baton.providers.base import (ProviderError, UnmeteredModel, approx_tokens,
+                                  cost_from_tokens, http_json)
 
 ENDPOINT = ("https://generativelanguage.googleapis.com/v1beta/models/"
             "{model}:generateContent")
@@ -118,6 +118,14 @@ def provider(api_key=None, model=MODEL, *, temperature=0.2, max_output_tokens=81
     """
     key = resolve_key(api_key)
     rate_card = prices if prices is not None else PRICES
+    # Fail at construction, not on hop 7 of a run that has already spent money.
+    # New Gemini models appear faster than this rate card is updated — run
+    # gemini.list_models() to see what your key can reach, then supply prices.
+    if model not in rate_card:
+        raise UnmeteredModel(
+            f"no price for {model!r}. Known: {', '.join(sorted(rate_card))}. "
+            f"Pass prices={{{model!r}: {{'in': X, 'out': Y}}}} (USD per 1M "
+            "tokens) — without it the budget ceiling cannot bound the run")
     url = ENDPOINT.format(model=model) + f"?key={key}"
 
     def dispatch(agent, baton, prompt):

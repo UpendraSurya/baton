@@ -85,8 +85,13 @@ class _State:
 
 def _merge_artifacts(carried, produced):
     """Later artifacts win on the same path; earlier ones keep travelling.
-    An agent that forgets to re-list the spec does not delete it for everyone."""
-    merged = {a.path: a for a in carried}
+
+    Carried artifacts are stripped to pointers and only the ones produced THIS
+    hop keep their inline content. That is what keeps per-hop cost bounded by one
+    deliverable rather than growing with every earlier turn — the whole reason
+    the original design refused to carry contents at all.
+    """
+    merged = {a.path: a.without_content() for a in carried}
     for a in produced:
         if a.path:
             merged[a.path] = a

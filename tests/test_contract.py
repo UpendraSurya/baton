@@ -242,9 +242,18 @@ class ValidationTests(unittest.TestCase):
         with self.assertRaises(IllegalTarget):
             validate_decision(d, GATE_AGENT, CHARTER)
 
-    def test_propose_done_needs_no_target(self):
-        d = parse_decision(block({"decision": "PROPOSE_DONE", "summary": "done"}))
+    def test_propose_done_needs_no_target_but_does_need_evidence(self):
+        d = parse_decision(block({"decision": "PROPOSE_DONE", "summary": "done",
+                                  "artifacts": [{"path": "d.md",
+                                                 "content": "the work"}]}))
         self.assertIs(d, validate_decision(d, CTO, CHARTER))
+
+    def test_propose_done_without_artifacts_is_refused(self):
+        """Live 2026-08-16: a worker proposed done with nothing attached and the
+        gate ratified the claim. A proposal with no evidence is unverifiable."""
+        d = parse_decision(block({"decision": "PROPOSE_DONE", "summary": "done"}))
+        with self.assertRaises(IllegalTarget):
+            validate_decision(d, CTO, CHARTER)
 
     def test_enforce_target_false_lets_an_illegal_target_through(self):
         """The seam the anti-vacuity suite uses to delete guard B alone."""

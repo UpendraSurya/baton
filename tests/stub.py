@@ -36,12 +36,25 @@ def handoff(to, goal="continue the work", rationale="next logical step",
     return _block(payload)
 
 
+# A well-behaved agent attaches its work. PROPOSE_DONE with nothing attached is
+# unverifiable by construction, so it is not the default a stub should model —
+# see tests/test_evidence.py for where that came from.
+DEFAULT_EVIDENCE = [{"path": "workspace/deliverable.md",
+                     "description": "the work product",
+                     "preview": "what was produced",
+                     "content": "The deliverable, in full."}]
+
+
 def propose_done(summary="every acceptance criterion is met", artifacts=None):
-    payload = {"decision": "PROPOSE_DONE", "summary": summary}
-    if artifacts:
-        payload["artifacts"] = [a.to_dict() if isinstance(a, ArtifactRef) else a
-                                for a in artifacts]
+    payload = {"decision": "PROPOSE_DONE", "summary": summary,
+               "artifacts": [a.to_dict() if isinstance(a, ArtifactRef) else a
+                             for a in (artifacts or DEFAULT_EVIDENCE)]}
     return _block(payload)
+
+
+def propose_done_without_evidence(summary="trust me, it is finished"):
+    """A worker claiming completion with nothing attached. Observed live."""
+    return _block({"decision": "PROPOSE_DONE", "summary": summary})
 
 
 def ratify(summary="checked every criterion; ships"):

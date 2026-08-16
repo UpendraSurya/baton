@@ -198,8 +198,27 @@ class CostArithmetic(unittest.TestCase):
         self.assertGreater(usd, 0.10, "meter reads impossibly low")
         self.assertLess(usd, 100.0, "meter reads impossibly high")
 
-    def test_an_unknown_model_costs_zero_rather_than_crashing(self):
-        self.assertEqual(0.0, cost_from_tokens(gemini.PRICES, "gemini-99", 10, 10))
+    def test_an_unpriced_model_raises_instead_of_costing_zero(self):
+        """A model priced at zero looks free to the budget ceiling, so the
+        ceiling never trips and the run has no cost bound at all. Google ships
+        new Gemini models faster than this rate card is updated, so this is not
+        hypothetical."""
+        from baton.providers.base import UnmeteredModel
+        with self.assertRaises(UnmeteredModel):
+            cost_from_tokens(gemini.PRICES, "gemini-3.7-flash", 10, 10)
+
+    def test_building_a_provider_on_an_unpriced_model_fails_immediately(self):
+        """At construction, not on hop 7 of a run that has already spent money."""
+        from baton.providers.base import UnmeteredModel
+        with self.assertRaises(UnmeteredModel) as cm:
+            gemini.provider(api_key="k", model="gemini-3.7-flash")
+        self.assertIn("prices=", str(cm.exception))
+
+    def test_supplying_a_rate_card_unblocks_a_new_model(self):
+        d = gemini.provider(api_key="k", model="gemini-3.7-flash",
+                            prices={"gemini-3.7-flash": {"in": 1.0, "out": 2.0}},
+                            transport=Recorder(reply(in_tok=1_000_000, out_tok=0)))
+        self.assertAlmostEqual(1.0, d(AGENT, BATON, "p").cost_usd, places=6)
 
     def test_the_dispatch_result_carries_a_real_cost(self):
         d = gemini.provider(api_key="k", model="gemini-2.5-flash",

@@ -78,16 +78,28 @@ def http_json(url, payload, headers=None, timeout=120, _sleep=time.sleep):
     raise ProviderError(last or "exhausted retries")
 
 
+class UnmeteredModel(ProviderError):
+    """No rate card for this model, so cost cannot be measured.
+
+    Raised rather than returning 0.0. A model priced at zero looks free to the
+    budget ceiling, so the ceiling never trips and the run has no cost bound at
+    all — a silent failure that only shows up on the bill.
+    """
+
+
 def cost_from_tokens(prices, model, in_tokens, out_tokens):
     """Rate cards are quoted per MILLION tokens. Divide by 1e6 exactly once.
 
-    This function exists as one place to get that arithmetic right, because
-    getting it wrong is silent: an undercounting cost meter does not error, it
-    just quietly disables the budget ceiling that is supposed to protect you.
+    One place to get that arithmetic right, because getting it wrong is silent:
+    an undercounting cost meter does not error, it just quietly disables the
+    budget ceiling that is supposed to protect you.
     """
     rate = prices.get(model)
     if rate is None:
-        return 0.0
+        raise UnmeteredModel(
+            f"no price for {model!r}: pass prices={{{model!r}: "
+            "{'in': <usd per 1M in>, 'out': <usd per 1M out>}} — without a rate "
+            "card the budget ceiling cannot bound this run")
     return (in_tokens * rate["in"] + out_tokens * rate["out"]) / 1_000_000
 
 

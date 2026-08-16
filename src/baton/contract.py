@@ -68,16 +68,24 @@ def render_routing_contract(agent, charter, *, include_legal_moves=True):
         '{"decision": "HANDOFF", "to": "<agent>",',
         ' "goal": "what the receiver must achieve",',
         ' "rationale": "why them, why now",',
-        ' "artifacts": [{"path": "workspace/spec.md", "description": "one line",',
-        '                "preview": "your own 2-3 line summary of the contents"}]}',
+        ' "artifacts": [{"path": "<path or label for what you produced>",',
+        '                "description": "one line",',
+        '                "preview": "your own 2-3 line summary",',
+        '                "content": "the work product itself, if the reader has no',
+        '                            way to open the path"}]}',
         "```",
         "",
         "or, if you believe the brief is satisfied:",
         "",
         "```handoff",
         '{"decision": "PROPOSE_DONE", "summary": "how each criterion is met",',
-        ' "artifacts": [{"path": "...", "description": "...", "preview": "..."}]}',
+        ' "artifacts": [{"path": "<what you produced>", "description": "...",',
+        '                "preview": "...", "content": "the deliverable itself"}]}',
         "```",
+        "",
+        "PROPOSE_DONE REQUIRES at least one artifact carrying the actual work.",
+        "Do not cite a path you did not write. If you have no file system, put",
+        "the deliverable in `content` — the gate can only judge what it can see.",
         "",
         "You cannot end the run yourself. PROPOSE_DONE sends the work to the gate.",
     ]
@@ -139,7 +147,8 @@ def _artifacts(raw):
         if isinstance(item, dict):
             out.append(ArtifactRef(path=str(item.get("path", "")).strip(),
                                    description=str(item.get("description", "")).strip(),
-                                   preview=str(item.get("preview", "")).strip()))
+                                   preview=str(item.get("preview", "")).strip(),
+                                   content=str(item.get("content", ""))))
         elif isinstance(item, str):
             # the design note's own example shows "path — description"; models copy it
             path, sep, desc = item.partition("—")
@@ -195,6 +204,15 @@ def validate_decision(decision, agent, charter, *, enforce_target=True):
 
     if decision.kind is Kind.HANDOFF and not decision.goal.strip():
         raise IllegalTarget("HANDOFF without a goal is a dropped baton")
+
+    if decision.kind is Kind.PROPOSE_DONE and not decision.artifacts:
+        # Observed live: a worker proposed done with no artifact at all, and the
+        # gate ratified its *claim* about a deliverable that existed nowhere.
+        # A proposal with no evidence attached is unverifiable by construction.
+        raise IllegalTarget(
+            "PROPOSE_DONE with no artifacts: attach the work product itself "
+            "(path + content, or path + preview if the reader can open it) — "
+            "the gate cannot ratify a claim it has no way to check")
 
     if decision.kind in (Kind.HANDOFF, Kind.REJECT) and enforce_target:
         moves = charter.legal_moves_for(agent)
