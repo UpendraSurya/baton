@@ -143,3 +143,47 @@ class StatePersistence(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CostMeterIsNotSilentlyZero(unittest.TestCase):
+    """Found by a stub-mode probe of a REAL Company OS charter: every dispatch
+    priced at $0.00, because agent_registry.json stores short aliases ('sonnet')
+    while MODEL_PRICES is keyed by full ids ('claude-sonnet-4-6'). A model that
+    costs zero never trips the budget ceiling — the ceiling silently stops
+    existing, which is the failure this vault has already been burned by once."""
+
+    def test_registry_aliases_resolve_to_priced_model_ids(self):
+        self.assertEqual("claude-sonnet-4-6", D.resolve_model("sonnet"))
+        self.assertEqual("claude-opus-4-8", D.resolve_model("opus"))
+        self.assertEqual("claude-haiku-4-5", D.resolve_model("haiku"))
+
+    def test_an_unknown_model_passes_through_unchanged(self):
+        self.assertEqual("gpt-5", D.resolve_model("gpt-5"))
+
+    def test_every_model_in_the_registry_can_be_priced(self):
+        """The check that would have caught it. If a new alias appears in the
+        registry with no price, this fails instead of quietly costing nothing."""
+        import sys
+        sys.path.insert(0, str(R.repo_path()))
+        from core import config
+        reg = R.load_registry()
+        seen = set()
+        for layer in R.LAYERS:
+            for name, entry in reg.get(layer, {}).items():
+                if name.startswith("_") or not isinstance(entry, dict):
+                    continue
+                m = entry.get("model")
+                if m:
+                    seen.add(m)
+        unpriced = sorted(m for m in seen
+                          if D.resolve_model(m) not in config.MODEL_PRICES)
+        self.assertEqual([], unpriced,
+                         f"registry models with no rate card: {unpriced}")
+
+    def test_pricing_an_unpriced_model_raises_rather_than_returning_zero(self):
+        from baton.providers.base import UnmeteredModel
+        with self.assertRaises(UnmeteredModel):
+            D.cost_usd("gpt-5", 1000, 1000)
+
+    def test_a_priced_model_returns_a_real_number(self):
+        self.assertGreater(D.cost_usd("sonnet", 1_000_000, 0), 0.5)
