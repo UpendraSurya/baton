@@ -3,3 +3,7 @@ __pycache__/
 .traces/
 *.jsonl
 bench/traces/
+build/
+dist/
+*.egg-info/
+.venv/
