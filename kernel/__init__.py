@@ -7,9 +7,10 @@ AgentSpecs and a dispatch callable, read the RunResult.
 """
 from kernel.agent import GATE, WORKER, AgentSpec
 from kernel.baton import ArtifactRef, Baton, Decision, Kind
+from kernel.charter import Charter
 from kernel.errors import (BatonError, CharterInvalid, IllegalTarget,
                            ParseFailure, RoleViolation, TraceCorrupt)
 
-__all__ = ["AgentSpec", "GATE", "WORKER", "ArtifactRef", "Baton", "Decision",
+__all__ = ["AgentSpec", "GATE", "WORKER", "ArtifactRef", "Baton", "Charter", "Decision",
            "Kind", "BatonError", "CharterInvalid", "IllegalTarget",
            "ParseFailure", "RoleViolation", "TraceCorrupt"]
