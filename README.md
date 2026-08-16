@@ -1,15 +1,27 @@
 # baton
 
-A small execution kernel for multi-agent systems where **the agents choose who runs next**.
+[![no dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](pyproject.toml)
+
+A Python library for multi-agent systems where **the agents choose who runs next**.
+
+```bash
+pip install baton-kernel
+```
 
 Instead of a pre-baked DAG, each agent ends its output with one fenced `handoff`
 block naming the next agent. The kernel makes that safe: legal-move enforcement,
 a budget ceiling, a hop cap, a ping-pong detector, and a gate agent that is the
 only role permitted to end a run.
 
-- `kernel/` — zero pip dependencies, zero knowledge of any consumer.
-- `adapters/company_os/` — the first consumer, wired to `claude -p` on a subscription.
-- `bash verify.sh` — the gate. Deterministic, offline, $0.
+**Zero dependencies, and it stays that way.** Providers talk HTTP through `urllib`
+from the standard library — no vendor SDK, no transitive tree. A test fails the
+build if that ever changes.
+
+```
+baton/              the core: Agent, Baton, Charter, Runtime, Trace
+baton/providers/    gemini — HTTPS via urllib, no SDK
+baton/adapters/     bind the kernel to a host application
+```
 
 Design and rejected alternatives:
 `~/dev-notes/projects/baton/2026-08-15_baton-dynamic-handoff-kernel-design.md`
@@ -17,16 +29,46 @@ Design and rejected alternatives:
 ## Using it
 
 ```python
-from kernel import run
-from adapters.company_os import registry, charter as ch, dispatch
+from baton import AgentSpec, Charter, run
+from baton.providers import gemini
 
-charter = ch.charter_for("Build a docs Q&A bot", project_type="rag_chatbot",
-                         acceptance_criteria=("answers cite sources",
-                                              "p95 under 2s"))
-agents = registry.load_agents(pool=charter.agent_pool)
-result = run(charter, agents, dispatch.real_dispatch)
+agents = {
+    "researcher": AgentSpec("researcher", "You gather facts.",
+                            {"writer", "editor", "gate"}),
+    "writer":     AgentSpec("writer", "You draft copy.",
+                            {"researcher", "editor", "gate"}),
+    "editor":     AgentSpec("editor", "You tighten copy.",
+                            {"writer", "researcher", "gate"}),
+    "gate":       AgentSpec("gate", "You judge against the criteria.",
+                            {"researcher", "writer", "editor"}, role="gate"),
+}
+
+charter = Charter(
+    brief="Write a launch announcement for baton",
+    entry_agent="researcher", gate_agent="gate",
+    agent_pool=frozenset(agents),
+    acceptance_criteria=("under 120 words", "no marketing cliches"),
+    budget_ceiling_usd=0.25, max_hops=8,
+)
+
+result = run(charter, agents, gemini.provider())   # reads GEMINI_API_KEY
 print(result.terminal_reason, result.path, result.spend_usd)
+# ratified ('researcher', 'writer', 'gate') 0.0039
 ```
+
+Nobody wrote that route. The agents chose it.
+
+Try it: `python3 examples/smoke_gemini.py` (needs `GEMINI_API_KEY`, costs ~$0.004).
+
+## Why not LangGraph
+
+LangGraph gives you a graph and asks you to draw the edges. baton deletes the
+edges and gives you a **Charter** instead — a budget ceiling, a hop cap, an agent
+pool and acceptance criteria — then lets the agents route inside that envelope.
+The engineering is not the decision (an LLM emitting `transfer_to_writer` is
+trivial); it is the runtime around it: legal-move enforcement, loop detection, a
+cost meter that refuses to run unmetered, and a gate agent that is the only role
+permitted to end a run.
 
 ## The stop rules
 
