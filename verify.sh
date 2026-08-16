@@ -28,12 +28,19 @@ case "$ROOT" in
   *) bad "baton is outside ~/unlimited" "refusing to run — see the design note, trap 7" ;;
 esac
 
-HITS=$(grep -rn --include='*.py' -e '\.company-os' -e 'HOME/company-os' . 2>/dev/null \
-         | grep -v 'unlimited-os' | grep -v '_CANONICAL' | grep -v 'canonical')
+# Exactly two files may CONSTRUCT a canonical path, and both do it only to
+# refuse it. Everything else — tests included — imports those constants. That
+# makes "could this write to canonical?" a one-line grep instead of a review.
+HITS=$(grep -rln --include='*.py' \
+         -e 'Path.home() / "company-os"' \
+         -e "Path.home() / '.company-os'" \
+         -e 'Path.home() / ".company-os"' . 2>/dev/null \
+       | grep -v 'adapters/company_os/state.py' \
+       | grep -v 'adapters/company_os/registry.py')
 if [ -n "$HITS" ]; then
-  bad "source references canonical company-os paths" "$HITS"
+  bad "a file outside the guards constructs a canonical path" "$HITS"
 else
-  ok "no unguarded canonical company-os paths in source"
+  ok "only the guard modules name the canonical paths"
 fi
 
 # --------------------------------------------------------------------------- #

@@ -22,7 +22,8 @@ from kernel.agent import GATE, WORKER, AgentSpec
 LAYERS = ("executive", "operations", "delivery", "quality", "business",
           "security_legal")
 
-_CANONICAL = pathlib.Path.home() / "company-os"
+# see state.CANONICAL_HOME — this is the repo twin of that constant
+CANONICAL_REPO = pathlib.Path.home() / "company-os"
 _SANDBOX = pathlib.Path.home() / "unlimited" / "company-os"
 
 # personas are flat in agents/, or in one of these subdirectories
@@ -37,7 +38,7 @@ def repo_path():
     """
     raw = os.environ.get("BATON_COMPANY_OS_REPO")
     path = pathlib.Path(raw).expanduser() if raw else _SANDBOX
-    if path == _CANONICAL and os.environ.get("BATON_ALLOW_CANONICAL") != "1":
+    if path == CANONICAL_REPO and os.environ.get("BATON_ALLOW_CANONICAL") != "1":
         raise RuntimeError(
             f"refusing to use the canonical checkout at {path}; build in "
             f"{_SANDBOX} (set BATON_ALLOW_CANONICAL=1 to override deliberately)")

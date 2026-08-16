@@ -17,17 +17,17 @@ class RepoPathSafety(unittest.TestCase):
                          R.repo_path())
 
     def test_pointing_at_canonical_company_os_is_refused(self):
-        """~/.company-os/state.db holds 66 irreplaceable runs. Development does
+        """The canonical state DB holds 66 irreplaceable runs. Development does
         not happen there, and the adapter will not be talked into it."""
-        os.environ["BATON_COMPANY_OS_REPO"] = str(pathlib.Path.home() / "company-os")
+        os.environ["BATON_COMPANY_OS_REPO"] = str(R.CANONICAL_REPO)
         with self.assertRaises(RuntimeError) as cm:
             R.repo_path()
         self.assertIn("canonical", str(cm.exception))
 
     def test_canonical_can_be_unlocked_deliberately(self):
-        os.environ["BATON_COMPANY_OS_REPO"] = str(pathlib.Path.home() / "company-os")
+        os.environ["BATON_COMPANY_OS_REPO"] = str(R.CANONICAL_REPO)
         os.environ["BATON_ALLOW_CANONICAL"] = "1"
-        self.assertEqual(pathlib.Path.home() / "company-os", R.repo_path())
+        self.assertEqual(R.CANONICAL_REPO, R.repo_path())
 
 
 class Layers(unittest.TestCase):
