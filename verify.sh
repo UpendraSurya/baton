@@ -11,6 +11,7 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT" || exit 1
+FAST=0; [ "${1:-}" = "--fast" ] && FAST=1
 
 export BATON_FORBID_REAL_DISPATCH=1
 export PYTHONDONTWRITEBYTECODE=1
@@ -128,6 +129,25 @@ if python3 bench/replay.py -n 1 >/dev/null 2>&1; then
   bad "replay ran with no flag" "tier 2 must never start by accident"
 else
   ok "replay refuses to run without --dry-run or --confirm-spend"
+fi
+
+# --------------------------------------------------------------------------- #
+head_ "6. The ARTIFACT, not just the repo"
+
+# Everything above runs with PYTHONPATH=src, which is fast and correct about the
+# CODE — and makes every packaging mistake invisible. Users never run src/; they
+# run a wheel unpacked somewhere else. This builds that wheel and tests it.
+AUDIT="$HOME/.claude/skills/shipping-python-libraries/audit.sh"
+if [ "$FAST" = "1" ]; then
+  printf '  skip  packaging audit (--fast)\n'
+elif [ ! -x "$AUDIT" ] && [ ! -f "$AUDIT" ]; then
+  printf '  skip  packaging audit not installed\n'
+else
+  if OUT=$(bash "$AUDIT" "$ROOT" 2>&1); then
+    ok "packaging audit — $(echo "$OUT" | grep -E '^passed' | head -1)"
+  else
+    bad "packaging audit" "$(echo "$OUT" | grep -E '^  FAIL' | head -10)"
+  fi
 fi
 
 # --------------------------------------------------------------------------- #
