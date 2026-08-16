@@ -10,7 +10,12 @@ from kernel.baton import ArtifactRef, Baton, Decision, Kind
 from kernel.charter import Charter
 from kernel.errors import (BatonError, CharterInvalid, IllegalTarget,
                            ParseFailure, RoleViolation, TraceCorrupt)
+from kernel.runtime import (TERMINAL_REASONS, DispatchResult, Guards, RunResult,
+                            run)
+from kernel.trace import MemoryTrace, Trace
 
 __all__ = ["AgentSpec", "GATE", "WORKER", "ArtifactRef", "Baton", "Charter", "Decision",
            "Kind", "BatonError", "CharterInvalid", "IllegalTarget",
-           "ParseFailure", "RoleViolation", "TraceCorrupt"]
+           "ParseFailure", "RoleViolation", "TraceCorrupt",
+           "DispatchResult", "Guards", "RunResult", "TERMINAL_REASONS", "run",
+           "MemoryTrace", "Trace"]
