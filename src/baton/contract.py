@@ -1,5 +1,5 @@
 """
-kernel.contract — turning free text into a route, and back.
+baton.contract — turning free text into a route, and back.
 
 An LLM returns prose. Everything about making that a routing decision lives here:
 what the agent is told it may do (render), what we pull back out (parse), and
@@ -14,8 +14,8 @@ and tests/test_anti_vacuity.py deletes each one alone to prove it is load-bearin
 import json
 import re
 
-from kernel.baton import ArtifactRef, Decision, Kind
-from kernel.errors import IllegalTarget, ParseFailure, RoleViolation
+from baton.packet import ArtifactRef, Decision, Kind
+from baton.errors import IllegalTarget, ParseFailure, RoleViolation
 
 PRESSURE_LINE = ("> **Budget pressure:** this run is near its ceiling — prefer "
                  "completing the work over delegating it further.")

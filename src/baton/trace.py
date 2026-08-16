@@ -1,5 +1,5 @@
 """
-kernel.trace — the append-only record of a run.
+baton.trace — the append-only record of a run.
 
 A dynamic route only becomes debuggable (and, later, learnable) if every hop is
 on disk. Append-only is CHECKED, not assumed: before each write the file is
@@ -10,7 +10,7 @@ import json
 import os
 import time
 
-from kernel.errors import TraceCorrupt
+from baton.errors import TraceCorrupt
 
 
 class Trace:

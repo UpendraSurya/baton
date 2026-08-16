@@ -1,11 +1,11 @@
 """Killer 1: never-done. The hop cap always produces a JUDGED outcome."""
 import unittest
 
-from kernel.agent import GATE, AgentSpec
-from kernel.charter import Charter
-from kernel.errors import BatonError
-from kernel.runtime import Guards, run
-from kernel.trace import MemoryTrace
+from baton.agent import GATE, AgentSpec
+from baton.charter import Charter
+from baton.errors import BatonError
+from baton.runtime import Guards, run
+from baton.trace import MemoryTrace
 from tests.stub import ScriptedDispatch, handoff, ratify, reject
 
 

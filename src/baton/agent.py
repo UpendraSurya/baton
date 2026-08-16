@@ -1,5 +1,5 @@
 """
-kernel.agent — what the kernel knows about an agent, which is deliberately little.
+baton.agent — what the kernel knows about an agent, which is deliberately little.
 
 An AgentSpec carries no execution machinery: no model client, no subprocess, no
 tools. Running it is the caller's job (see runtime.run's `dispatch` argument).

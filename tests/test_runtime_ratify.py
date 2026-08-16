@@ -5,11 +5,11 @@ otherwise the model that did the work grades the work.
 """
 import unittest
 
-from kernel.agent import GATE, AgentSpec
-from kernel.charter import Charter
-from kernel.errors import CharterInvalid
-from kernel.runtime import TERMINAL_REASONS, run
-from kernel.trace import MemoryTrace
+from baton.agent import GATE, AgentSpec
+from baton.charter import Charter
+from baton.errors import CharterInvalid
+from baton.runtime import TERMINAL_REASONS, run
+from baton.trace import MemoryTrace
 from tests.stub import (ScriptedDispatch, boom, handoff, propose_done,
                         prose_then, ratify)
 

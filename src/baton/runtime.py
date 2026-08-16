@@ -1,5 +1,5 @@
 """
-kernel.runtime — the loop.
+baton.runtime — the loop.
 
 call dispatch -> parse the decision -> enforce the charter -> append the trace ->
 repeat or terminate. Every run ends with exactly one reason from TERMINAL_REASONS;
@@ -12,13 +12,13 @@ and it is why kernel/ imports nothing.
 import uuid
 from dataclasses import dataclass, field
 
-from kernel.agent import AgentSpec
-from kernel.baton import Baton, Kind
-from kernel.contract import (parse_decision, render_prompt, repair_nudge,
+from baton.agent import AgentSpec
+from baton.packet import Baton, Kind
+from baton.contract import (parse_decision, render_prompt, repair_nudge,
                              validate_decision)
-from kernel.errors import (BatonError, CharterInvalid, IllegalTarget,
+from baton.errors import (BatonError, CharterInvalid, IllegalTarget,
                            ParseFailure, RoleViolation)
-from kernel.trace import MemoryTrace
+from baton.trace import MemoryTrace
 
 TERMINAL_REASONS = ("ratified", "budget_exhausted", "hops_exhausted", "stalled",
                     "dispatch_failure", "charter_violation", "reject_cap_reached")

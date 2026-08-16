@@ -14,9 +14,9 @@ import json
 import pathlib
 import re
 
-from kernel.charter import Charter
+from baton.charter import Charter
 
-from adapters.company_os.registry import LAYERS, load_registry, repo_path
+from baton.adapters.company_os.registry import LAYERS, load_registry, repo_path
 
 DEFAULT_BUDGET_USD = 5.0
 DEFAULT_TIER = "M"

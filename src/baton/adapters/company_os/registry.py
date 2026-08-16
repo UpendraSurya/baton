@@ -16,7 +16,7 @@ import json
 import os
 import pathlib
 
-from kernel.agent import GATE, WORKER, AgentSpec
+from baton.agent import GATE, WORKER, AgentSpec
 
 # vault/layers/layer-1..6, in order. "the layer below" means the next one here.
 LAYERS = ("executive", "operations", "delivery", "quality", "business",

@@ -12,9 +12,9 @@ keeps this module importable by verify.sh's refusal probe.
 import os
 import sys
 
-from kernel.runtime import DispatchResult
+from baton.runtime import DispatchResult
 
-from adapters.company_os.registry import repo_path
+from baton.adapters.company_os.registry import repo_path
 
 FORBID = "BATON_FORBID_REAL_DISPATCH"
 DEFAULT_MODEL = "claude-sonnet-4-6"

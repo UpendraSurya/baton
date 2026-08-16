@@ -1,5 +1,5 @@
 """
-kernel.baton — the packet that travels between agents, and the decision that
+baton.packet — the packet that travels between agents, and the decision that
 mints the next one.
 
 Artifacts carry a PATH, a one-line description and the producing agent's own

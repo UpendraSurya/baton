@@ -4,10 +4,10 @@ then the gate judges what exists — never a third blind retry.
 """
 import unittest
 
-from kernel.agent import GATE, AgentSpec
-from kernel.charter import Charter
-from kernel.runtime import Guards, run
-from kernel.trace import MemoryTrace
+from baton.agent import GATE, AgentSpec
+from baton.charter import Charter
+from baton.runtime import Guards, run
+from baton.trace import MemoryTrace
 from tests.stub import (ScriptedDispatch, garbage, handoff, propose_done,
                         prose_then, ratify)
 

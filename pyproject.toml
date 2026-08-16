@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "baton-kernel"
+version = "0.1.0"
+description = "An execution kernel for multi-agent systems where the agents choose who runs next."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Upendra Surya Jonnalagadda" }]
+keywords = ["agents", "multi-agent", "llm", "handoff", "orchestration", "routing"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+
+# THE POINT: this list is empty and stays empty.
+# Providers talk HTTP through urllib from the standard library. tests/test_isolation.py
+# fails the build if anything here grows.
+dependencies = []
+
+[project.optional-dependencies]
+# Not needed to USE baton — only to develop it.
+dev = []
+
+[project.urls]
+Homepage = "https://github.com/upendrasurya/baton"
+Issues = "https://github.com/upendrasurya/baton/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"

@@ -3,8 +3,8 @@ import os
 import pathlib
 import unittest
 
-from adapters.company_os import registry as R
-from kernel.agent import GATE
+from baton.adapters.company_os import registry as R
+from baton.agent import GATE
 
 
 class RepoPathSafety(unittest.TestCase):

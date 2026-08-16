@@ -1,9 +1,9 @@
 """The gate is the only role that can end a run — and it cannot loop forever."""
 import unittest
 
-from kernel.agent import GATE, AgentSpec
-from kernel.charter import Charter
-from kernel.runtime import Guards, run
+from baton.agent import GATE, AgentSpec
+from baton.charter import Charter
+from baton.runtime import Guards, run
 from tests.stub import ScriptedDispatch, propose_done, ratify, reject
 
 

@@ -4,8 +4,8 @@ import pathlib
 import tempfile
 import unittest
 
-from kernel.errors import TraceCorrupt
-from kernel.trace import MemoryTrace, Trace
+from baton.errors import TraceCorrupt
+from baton.trace import MemoryTrace, Trace
 
 
 class TraceTests(unittest.TestCase):

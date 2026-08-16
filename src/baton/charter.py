@@ -1,5 +1,5 @@
 """
-kernel.charter — the pre-flight constraint envelope.
+baton.charter — the pre-flight constraint envelope.
 
 This is what replaces the topology. A topology froze the ROUTE and, incidentally,
 carried the budget cap, the security tier and the agent roster. Deleting the route
@@ -10,7 +10,7 @@ cannot be talked into lowering the bar halfway through.
 """
 from dataclasses import dataclass
 
-from kernel.errors import CharterInvalid
+from baton.errors import CharterInvalid
 
 TIERS = ("L", "M", "H")
 

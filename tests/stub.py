@@ -11,8 +11,8 @@ import json
 import pathlib
 import re
 
-from kernel.baton import ArtifactRef
-from kernel.runtime import DispatchResult
+from baton.packet import ArtifactRef
+from baton.runtime import DispatchResult
 
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
 REAL_PROSE = json.loads((FIXTURES / "real_agent_prose.json").read_text())

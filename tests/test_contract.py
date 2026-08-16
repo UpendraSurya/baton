@@ -9,13 +9,13 @@ import json
 import pathlib
 import unittest
 
-from kernel.agent import GATE, AgentSpec
-from kernel.baton import Baton, Kind
-from kernel.charter import Charter
-from kernel.contract import (PRESSURE_LINE, parse_decision, render_prompt,
+from baton.agent import GATE, AgentSpec
+from baton.packet import Baton, Kind
+from baton.charter import Charter
+from baton.contract import (PRESSURE_LINE, parse_decision, render_prompt,
                              render_routing_contract, repair_nudge,
                              validate_decision)
-from kernel.errors import IllegalTarget, ParseFailure, RoleViolation
+from baton.errors import IllegalTarget, ParseFailure, RoleViolation
 
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
 REAL_PROSE = json.loads((FIXTURES / "real_agent_prose.json").read_text())

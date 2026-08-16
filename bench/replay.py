@@ -19,13 +19,14 @@ import pathlib
 import sqlite3
 import sys
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "src"))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-from adapters.company_os import charter as C          # noqa: E402
-from adapters.company_os import dispatch as D         # noqa: E402
-from adapters.company_os import registry as R         # noqa: E402
-from kernel.runtime import DispatchResult, run        # noqa: E402
-from kernel.trace import Trace                        # noqa: E402
+from baton.adapters.company_os import charter as C          # noqa: E402
+from baton.adapters.company_os import dispatch as D         # noqa: E402
+from baton.adapters.company_os import registry as R         # noqa: E402
+from baton.runtime import DispatchResult, run        # noqa: E402
+from baton.trace import Trace                        # noqa: E402
 
 FORK_DB = pathlib.Path.home() / ".unlimited-os" / "state.db"
 TRACE_DIR = pathlib.Path(__file__).resolve().parent / "traces"

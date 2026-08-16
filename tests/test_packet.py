@@ -2,7 +2,7 @@
 import dataclasses
 import unittest
 
-from kernel.baton import ArtifactRef, Baton, Decision, Kind
+from baton.packet import ArtifactRef, Baton, Decision, Kind
 
 
 def a_baton(**kw):

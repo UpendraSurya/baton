@@ -8,13 +8,13 @@ import sqlite3
 import tempfile
 import unittest
 
-from adapters.company_os import charter as C
-from adapters.company_os import dispatch as D
-from adapters.company_os import registry as R
-from adapters.company_os import state as S
-from kernel.agent import GATE, AgentSpec
-from kernel.charter import Charter
-from kernel.runtime import run
+from baton.adapters.company_os import charter as C
+from baton.adapters.company_os import dispatch as D
+from baton.adapters.company_os import registry as R
+from baton.adapters.company_os import state as S
+from baton.agent import GATE, AgentSpec
+from baton.charter import Charter
+from baton.runtime import run
 from tests.stub import ScriptedDispatch, propose_done, ratify
 
 

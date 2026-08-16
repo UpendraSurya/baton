@@ -1,9 +1,9 @@
 """The Charter bounds a run without prescribing its shape."""
 import unittest
 
-from kernel.agent import AgentSpec
-from kernel.charter import Charter
-from kernel.errors import CharterInvalid
+from baton.agent import AgentSpec
+from baton.charter import Charter
+from baton.errors import CharterInvalid
 
 
 def a_charter(**kw):

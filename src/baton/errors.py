@@ -1,5 +1,5 @@
 """
-kernel.errors — every way a run can go wrong, named.
+baton.errors — every way a run can go wrong, named.
 
 One base class so a consumer can catch everything with one except clause, and
 five specific ones so the runtime's validation ladder can tell "the model wrote
