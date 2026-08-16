@@ -281,10 +281,34 @@ def run(charter, agents, dispatch, *, trace=None, guards=None, trace_id=None):
                 artifacts=decision.artifacts)
             continue
 
-        # HANDOFF
+        # HANDOFF — killer 3: ping-pong. Escalate first, terminate second.
+        pair = (agent.name, decision.to)
+        st.pairs.append(pair)
+        stall = ""
+        if guards.cycle:
+            seen = st.pairs.count(pair)
+            if seen >= 4:
+                return _finish(trace, st, "stalled", baton,
+                               note=(f"{agent.name} -> {decision.to} repeated "
+                                     f"{seen} times with no progress"))
+            if seen == 3:
+                trace.append({"event": "stall_escalate", "hop": st.hop,
+                              "pair": list(pair)})
+                baton = _gate_baton(
+                    charter, trace.trace_id, st, agent.name, baton.artifacts,
+                    goal=(f"{agent.name} and {decision.to} are looping. Assess "
+                          "what exists and break the tie."),
+                    artifacts=decision.artifacts, flags=("stalled_loop",))
+                continue
+            if seen == 2:
+                stall = (f"you and {decision.to} have already exchanged this "
+                         "baton once — name what is actually blocking progress "
+                         "rather than handing it back")
+
         baton = Baton(trace_id=trace.trace_id, hop=st.hop, from_agent=agent.name,
                       to_agent=decision.to, goal=decision.goal,
                       rationale=decision.rationale,
                       artifacts=_merge_artifacts(baton.artifacts,
                                                  decision.artifacts),
-                      open_questions=tuple(charter.acceptance_criteria))
+                      open_questions=tuple(charter.acceptance_criteria),
+                      stall_notice=stall)
