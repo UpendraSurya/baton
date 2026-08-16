@@ -216,11 +216,25 @@ def run(charter, agents, dispatch, *, trace=None, guards=None, trace_id=None):
                 "This run is out of hops. Assess what exists against the "
                 "acceptance criteria and give a verdict.")
 
+        # Killer 2: budget spiral. Hard halt — no forced gate call, because a
+        # call made past the ceiling spends money the charter forbade.
+        if guards.budget and st.spend >= charter.budget_ceiling_usd:
+            return _finish(trace, st, "budget_exhausted", baton,
+                           note=(f"spend ${st.spend:.2f} reached the "
+                                 f"${charter.budget_ceiling_usd:.2f} ceiling"))
+
         agent = agents[baton.to_agent]
         st.hop += 1
         st.path.append(agent.name)
 
         decision, failure = _hop(agent, baton, charter, st, dispatch, guards, trace)
+
+        if (guards.budget and not st.pressure
+                and st.spend >= charter.pressure_threshold * charter.budget_ceiling_usd):
+            st.pressure = True
+            trace.append({"event": "pressure", "hop": st.hop,
+                          "spend_usd": round(st.spend, 6),
+                          "ceiling_usd": charter.budget_ceiling_usd})
 
         if failure == "dispatch_failure":
             return _finish(trace, st, "dispatch_failure", baton,
