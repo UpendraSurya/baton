@@ -11,6 +11,13 @@ import unittest
 from baton.adapters.company_os import charter as C
 from baton.adapters.company_os import dispatch as D
 from baton.adapters.company_os import registry as R
+
+# Reads the host's real topology library, registry and rate card off disk. The
+# adapter is a worked example of binding a host; the host is not on a CI runner.
+_HOST = R.repo_path()
+needs_host = unittest.skipUnless(
+    (_HOST / "registry" / "agent_registry.json").is_file(),
+    f"no Company OS checkout at {_HOST}")
 from baton.adapters.company_os import state as S
 from baton.agent import GATE, AgentSpec
 from baton.charter import Charter
@@ -47,6 +54,7 @@ class RealDispatchIsBlockedUnderTheGate(unittest.TestCase):
         self.assertEqual("just a baton", D.strip_persona("just a baton", agent))
 
 
+@needs_host
 class CharterPriors(unittest.TestCase):
     def test_priors_come_from_the_topology_tables(self):
         """The edges die; the estimates survive. That is the whole point of the
@@ -145,6 +153,7 @@ if __name__ == "__main__":
     unittest.main()
 
 
+@needs_host
 class CostMeterIsNotSilentlyZero(unittest.TestCase):
     """Found by a stub-mode probe of a REAL Company OS charter: every dispatch
     priced at $0.00, because agent_registry.json stores short aliases ('sonnet')
@@ -260,3 +269,36 @@ class TheDeliverableIsTheFullOutputNotTheDigest(unittest.TestCase):
 
     def test_nothing_at_all_yields_empty_string(self):
         self.assertEqual("", D.deliverable_text(self.out()))
+
+
+class TheHostBindingFailsHonestly(unittest.TestCase):
+    """This adapter is a WORKED EXAMPLE of binding a host, and it ships in the
+    wheel on purpose. An installed user without the Company OS checkout must be
+    told that in one line, not handed `ModuleNotFoundError: No module named
+    'core'` from three frames down a lazy import."""
+
+    def test_a_missing_host_names_itself_the_path_and_the_remedy(self):
+        # Exercised through _add_repo_to_path rather than real_dispatch: the
+        # gate runs the suite with BATON_FORBID_REAL_DISPATCH=1, and a test that
+        # cleared that flag to reach this code would weaken the one guarantee
+        # making the gate provably free.
+        before = os.environ.get("BATON_COMPANY_OS_REPO")
+        os.environ["BATON_COMPANY_OS_REPO"] = "/nonexistent/company-os"
+        try:
+            with self.assertRaises(D.HostUnavailable) as cm:
+                D._add_repo_to_path()
+        finally:
+            if before is None:
+                os.environ.pop("BATON_COMPANY_OS_REPO", None)
+            else:
+                os.environ["BATON_COMPANY_OS_REPO"] = before
+        msg = str(cm.exception)
+        self.assertIn("/nonexistent/company-os", msg)      # where it looked
+        self.assertIn("BATON_COMPANY_OS_REPO", msg)        # how to point it elsewhere
+        self.assertIn("worked example", msg)               # what this adapter is
+
+    def test_host_unavailable_is_a_baton_error(self):
+        # A caller catching BatonError must catch this too; a bare RuntimeError
+        # escaping an adapter is indistinguishable from a bug in the kernel.
+        from baton.errors import BatonError
+        self.assertTrue(issubclass(D.HostUnavailable, BatonError))

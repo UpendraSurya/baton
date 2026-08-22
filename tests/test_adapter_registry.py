@@ -6,6 +6,16 @@ import unittest
 from baton.adapters.company_os import registry as R
 from baton.agent import GATE
 
+# These read the host's real registry and personas off disk. The adapter is a
+# worked example of binding a host, and the host is not on a CI runner or a
+# contributor's laptop — so they SKIP there rather than failing a build for the
+# absence of something that was never shipped. The safety tests below (which
+# path is refused, which is default) need no host and always run.
+HOST = R.repo_path()
+needs_host = unittest.skipUnless(
+    (HOST / "registry" / "agent_registry.json").is_file(),
+    f"no Company OS checkout at {HOST}")
+
 
 class RepoPathSafety(unittest.TestCase):
     def tearDown(self):
@@ -30,6 +40,7 @@ class RepoPathSafety(unittest.TestCase):
         self.assertEqual(R.CANONICAL_REPO, R.repo_path())
 
 
+@needs_host
 class Layers(unittest.TestCase):
     def setUp(self):
         self.reg = R.load_registry()
@@ -47,6 +58,7 @@ class Layers(unittest.TestCase):
         self.assertEqual("", R.layer_of("senior_vibe_officer", self.reg))
 
 
+@needs_host
 class CanHandTo(unittest.TestCase):
     def setUp(self):
         self.reg = R.load_registry()
@@ -78,6 +90,7 @@ class CanHandTo(unittest.TestCase):
                 self.assertLessEqual(n, 30, f"{name} has a {n}-way choice")
 
 
+@needs_host
 class LoadAgents(unittest.TestCase):
     def test_every_spec_carries_its_real_persona_text(self):
         agents = R.load_agents()

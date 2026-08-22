@@ -26,9 +26,20 @@ head_() { printf '\n--- %s\n' "$1"; }
 # --------------------------------------------------------------------------- #
 head_ "1. Sandbox safety (this repo must not be able to touch canonical)"
 
+# The point of this check is that development cannot reach the CANONICAL
+# Company OS state DB, which holds irreplaceable runs. On a machine where no
+# canonical checkout exists — CI, a contributor's laptop — there is nothing to
+# protect, so the check has no subject and skips rather than failing a build for
+# a risk that is not present.
 case "$ROOT" in
   "$HOME"/unlimited/*) ok "building inside the ~/unlimited sandbox" ;;
-  *) bad "baton is outside ~/unlimited" "refusing to run — see the design note, trap 7" ;;
+  *)
+    if [ -e "$HOME/company-os" ] || [ -e "$HOME/.company-os" ]; then
+      bad "baton is outside ~/unlimited" "refusing to run — see the design note, trap 7"
+    else
+      printf '  skip  no canonical Company OS on this machine; nothing to sandbox from\n'
+    fi
+    ;;
 esac
 
 # Exactly two files may CONSTRUCT a canonical path, and both do it only to

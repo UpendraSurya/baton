@@ -1,0 +1,26 @@
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  gate:
+    # The gate must be free and offline. No secrets are provided to this job on
+    # purpose: a suite that can reach a model can accidentally spend money, and
+    # BATON_FORBID_REAL_DISPATCH makes the refusal path the only one available.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: verify.sh
+        env:
+          BATON_FORBID_REAL_DISPATCH: "1"
+        run: bash verify.sh

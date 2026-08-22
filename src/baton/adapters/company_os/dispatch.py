@@ -13,6 +13,7 @@ import os
 import pathlib
 import sys
 
+from baton.errors import BatonError
 from baton.providers.base import cost_from_tokens
 from baton.runtime import DispatchResult
 
@@ -45,8 +46,23 @@ def strip_persona(prompt, agent):
     return prompt
 
 
+class HostUnavailable(BatonError):
+    """The Company OS checkout this adapter binds is not on this machine."""
+
+
 def _add_repo_to_path():
     repo = repo_path()
+    # This adapter ships in the wheel as a worked example of binding a host, so
+    # most installed users will not have the checkout. Say so here, in one line,
+    # instead of letting `from core.contracts import ...` fail three frames down
+    # with a ModuleNotFoundError that names neither this adapter nor the fix.
+    if not (repo / "engine").is_dir():
+        raise HostUnavailable(
+            f"Company OS is not at {repo}. baton.adapters.company_os is a "
+            "worked example of binding a host application, not a general "
+            "adapter — it needs that checkout on disk. Point it elsewhere with "
+            "BATON_COMPANY_OS_REPO=/path/to/company-os, or use "
+            "baton.providers.gemini / .mistral to talk to a model directly.")
     if str(repo) not in sys.path:
         sys.path.insert(0, str(repo))
     return repo
