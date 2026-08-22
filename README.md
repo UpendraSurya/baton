@@ -33,7 +33,7 @@ What *is* proven is the **runtime**: every run ends for exactly one of eight
 declared reasons, demonstrated over 4,000 adversarial runs with all eight
 observed. If you want agents to route themselves, this is the envelope that
 makes it safe to try. The write-up, including why the measurement is hard, is
-linked at the bottom.
+in [docs/measuring-dynamic-routing.md](docs/measuring-dynamic-routing.md).
 
 **Zero dependencies, and it stays that way.** Providers talk HTTP through `urllib`
 from the standard library — no vendor SDK, no transitive tree. A test fails the
