@@ -187,3 +187,76 @@ class CostMeterIsNotSilentlyZero(unittest.TestCase):
 
     def test_a_priced_model_returns_a_real_number(self):
         self.assertGreater(D.cost_usd("sonnet", 1_000_000, 0), 0.5)
+
+
+class TheDeliverableIsTheFullOutputNotTheDigest(unittest.TestCase):
+    """Company OS writes the agent's full output to disk and hands the next node
+    a <=200-char digest. That contract is right for Company OS's own DAG and
+    wrong for baton: the handoff block is the LAST thing an agent writes, so the
+    digest truncates away the routing decision every single time.
+
+    Measured on the first live run: 4051 output tokens produced, 213 characters
+    handed to the kernel, "no fenced handoff block found" on every attempt.
+    """
+
+    class FakeArtifact:
+        def __init__(self, ref, summary):
+            self.ref, self.summary = ref, summary
+
+    class FakeOutput:
+        def __init__(self, artifact=None, notes=""):
+            self.artifact, self.notes = artifact, notes
+
+    def out(self, ref="", summary="", notes=""):
+        art = self.FakeArtifact(ref, summary) if (ref or summary) else None
+        return self.FakeOutput(art, notes)
+
+    def test_the_full_output_is_read_from_the_artifact_ref(self):
+        full = ("# Postmortem template\n" + ("body line\n" * 200)
+                + '```handoff\n{"decision": "HANDOFF", "to": "tester"}\n```')
+        with tempfile.TemporaryDirectory() as d:
+            path = pathlib.Path(d) / "ceo.md"
+            path.write_text(full)
+            text = D.deliverable_text(self.out(ref=str(path),
+                                               summary=full[:200]))
+        self.assertIn("```handoff", text)
+
+    def test_the_summary_is_used_when_there_is_no_ref(self):
+        self.assertEqual("a digest", D.deliverable_text(self.out(summary="a digest")))
+
+    def test_a_ref_that_is_not_on_disk_falls_back_to_the_summary(self):
+        # ref is a path in the HOST's workspace; a caller pointed elsewhere, or
+        # the file was cleaned up. Losing the digest too would turn a degraded
+        # hop into a dispatch failure.
+        text = D.deliverable_text(self.out(ref="/nonexistent/ceo.md",
+                                           summary="a digest"))
+        self.assertEqual("a digest", text)
+
+    def test_an_empty_file_does_not_beat_the_summary(self):
+        # A zero-byte deliverable is a failed write, not a deliverable.
+        with tempfile.TemporaryDirectory() as d:
+            path = pathlib.Path(d) / "ceo.md"
+            path.write_text("")
+            text = D.deliverable_text(self.out(ref=str(path), summary="a digest"))
+        self.assertEqual("a digest", text)
+
+    def test_a_ref_that_is_not_a_path_is_not_opened(self):
+        """Artifact.ref is "path / git ref". A bare git ref must not be opened
+        as a file — and to prove the guard rather than the coincidence that
+        "HEAD~1" is usually absent, there is a real file by that name in cwd."""
+        with tempfile.TemporaryDirectory() as d:
+            (pathlib.Path(d) / "HEAD~1").write_text("WRONG: this is a git ref")
+            cwd = os.getcwd()
+            os.chdir(d)
+            try:
+                text = D.deliverable_text(self.out(ref="HEAD~1", summary="a digest"))
+            finally:
+                os.chdir(cwd)
+        self.assertEqual("a digest", text)
+
+    def test_notes_are_the_last_resort(self):
+        self.assertEqual("rate_limited",
+                         D.deliverable_text(self.out(notes="rate_limited")))
+
+    def test_nothing_at_all_yields_empty_string(self):
+        self.assertEqual("", D.deliverable_text(self.out()))

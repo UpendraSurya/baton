@@ -10,6 +10,7 @@ tier-1 suite runnable on a machine where the fork is not checked out, and it
 keeps this module importable by verify.sh's refusal probe.
 """
 import os
+import pathlib
 import sys
 
 from baton.providers.base import cost_from_tokens
@@ -87,12 +88,51 @@ def real_dispatch(agent, baton, prompt, *, model_id=None, repo_dir=None, stub=Fa
     except Exception as exc:                        # transport, timeout, rate limit
         return DispatchResult(text="", error=f"{type(exc).__name__}: {exc}")
 
-    text = (out.artifact.summary if out.artifact else "") or out.notes or ""
+    text = deliverable_text(out)
     failed = getattr(out.status, "value", str(out.status)) == "failed"
     return DispatchResult(text=text,
                           cost_usd=cost_usd(model, out.in_tokens, out.out_tokens),
                           in_tokens=out.in_tokens, out_tokens=out.out_tokens,
                           error=out.notes if failed else "")
+
+
+
+def deliverable_text(out):
+    """The agent's FULL output, not Company OS's digest of it.
+
+    run_agent writes the whole response to `artifact.ref` and puts an
+    `_extract_summary()` digest — 200 characters when the agent wrote no
+    `SUMMARY:` line — in `artifact.summary`. That digest is the right thing for
+    Company OS's own DAG, where the next node wants a precis. It is the wrong
+    thing here: the handoff block is the LAST thing an agent writes, so the
+    digest truncates the routing decision away every single time.
+
+    Measured on the first live run of this seam (2026-08-22): 4051 output
+    tokens produced, 213 characters handed to the kernel, "no fenced handoff
+    block found" on every attempt, `charter_violation` after 181s and $0.59 of
+    metered spend. Stub mode could never have caught it — a stub returns a
+    placeholder with no handoff block either, so the failure looked identical
+    to the one you would expect from a stub.
+
+    Fallbacks are ordered by how much is known: the file, then the digest, then
+    the notes. A degraded hop is worth more than a dispatch failure.
+    """
+    artifact = getattr(out, "artifact", None)
+    if artifact is not None:
+        # Artifact.ref is "path / git ref". Only a path is worth opening, and a
+        # git ref has no separator in it.
+        ref = (getattr(artifact, "ref", "") or "").strip()
+        if ref and os.sep in ref:
+            try:
+                full = pathlib.Path(ref).read_text(encoding="utf-8").strip()
+            except OSError:
+                full = ""            # host cleaned the workspace, or wrong machine
+            if full:                 # a zero-byte deliverable is a failed write
+                return full
+        summary = (getattr(artifact, "summary", "") or "").strip()
+        if summary:
+            return summary
+    return (getattr(out, "notes", "") or "").strip()
 
 
 def cost_usd(model_id, in_tokens, out_tokens):
