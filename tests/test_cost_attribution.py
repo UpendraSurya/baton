@@ -131,3 +131,52 @@ class EveryProviderNamesItsModel(unittest.TestCase):
         # card are keyed by full ids. The alias is what breaks reconciliation.
         from baton.adapters.company_os import dispatch as D
         self.assertEqual(D.resolve_model("opus"), "claude-opus-4-8")
+
+
+class CacheTokensArePricedAsCacheTokens(unittest.TestCase):
+    """A cached read is not a fresh input token.
+
+    Counting only `input_tokens` under-reported by ~235x (fixed 2026-08-22).
+    Then summing all three counters at the full input rate OVER-reported, and
+    that was not academic: the first real shadow pair halted at
+    `budget_exhausted` after ONE hop, because a repo-reading agent carries an
+    enormous cached prompt. A ceiling that fires on hop one is as useless as a
+    ceiling that never fires.
+    """
+
+    def cost(self, **kw):
+        from baton.adapters.company_os import dispatch as D
+        return D.cost_usd("claude-sonnet-4-6", **kw)
+
+    def test_a_cached_read_costs_far_less_than_a_fresh_token(self):
+        fresh = self.cost(in_tokens=1_000_000, out_tokens=0)
+        cached = self.cost(in_tokens=1_000_000, out_tokens=0,
+                           cache_read=1_000_000)
+        self.assertLess(cached, fresh / 5)
+
+    def test_a_cache_write_costs_more_than_a_fresh_token(self):
+        fresh = self.cost(in_tokens=1_000_000, out_tokens=0)
+        written = self.cost(in_tokens=1_000_000, out_tokens=0,
+                            cache_write=1_000_000)
+        self.assertGreater(written, fresh)
+
+    def test_no_cache_prices_exactly_as_before(self):
+        # The whole point of a breakdown defaulting to zero: providers that do
+        # not cache must be unaffected.
+        self.assertEqual(self.cost(in_tokens=1000, out_tokens=500),
+                         self.cost(in_tokens=1000, out_tokens=500,
+                                   cache_read=0, cache_write=0))
+
+    def test_the_cached_portion_is_subtracted_then_repriced(self):
+        # in_tokens is the TRUE total (cache included), so pricing must take the
+        # cached part OUT of the full-rate figure and re-add it at its own rate,
+        # never stack the two. 100k total with 99k cached = 1k at full rate plus
+        # 9.9k effective, so exactly 10.9k full-rate-equivalent tokens.
+        total = self.cost(in_tokens=100_000, out_tokens=0, cache_read=99_000)
+        self.assertAlmostEqual(total, self.cost(in_tokens=10_900, out_tokens=0))
+
+    def test_pricing_the_cache_at_full_rate_would_cost_far_more(self):
+        # This is the regression that halted a real run on hop one.
+        naive = self.cost(in_tokens=100_000, out_tokens=0)
+        actual = self.cost(in_tokens=100_000, out_tokens=0, cache_read=99_000)
+        self.assertLess(actual, naive / 5)

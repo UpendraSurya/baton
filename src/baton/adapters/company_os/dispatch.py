@@ -107,7 +107,10 @@ def real_dispatch(agent, baton, prompt, *, model_id=None, repo_dir=None, stub=Fa
     text = deliverable_text(out)
     failed = getattr(out.status, "value", str(out.status)) == "failed"
     return DispatchResult(text=text,
-                          cost_usd=cost_usd(model, out.in_tokens, out.out_tokens),
+                          cost_usd=cost_usd(
+                              model, out.in_tokens, out.out_tokens,
+                              cache_read=getattr(out, "cache_read_tokens", 0),
+                              cache_write=getattr(out, "cache_write_tokens", 0)),
                           in_tokens=out.in_tokens, out_tokens=out.out_tokens,
                           model_id=model,   # RESOLVED, not the registry alias
                           error=out.notes if failed else "")
@@ -152,8 +155,20 @@ def deliverable_text(out):
     return (getattr(out, "notes", "") or "").strip()
 
 
-def cost_usd(model_id, in_tokens, out_tokens):
+# Anthropic bills a cached read at ~0.1x the input rate and a cache WRITE at
+# ~1.25x. Pricing all three counters at 1.0x is what made the first real shadow
+# pair halt at budget_exhausted on hop one: a repo-reading agent carries a huge
+# cached prompt, and at full rate that alone cleared a $2 ceiling.
+CACHE_READ_RATE = 0.1
+CACHE_WRITE_RATE = 1.25
+
+
+def cost_usd(model_id, in_tokens, out_tokens, *, cache_read=0, cache_write=0):
     """Company OS's rate card, priced through BATON's meter.
+
+    `in_tokens` is the TRUE total input, cache included — that is what belongs
+    in a ledger. Pricing then splits it: the cached portion is subtracted out
+    and re-priced at its own rate, so the cache is never double counted.
 
     Deliberately not config.cost_usd(), whose contract is "unknown models cost 0
     (logged, never crash)". A model that prices at zero never trips the ceiling,
@@ -162,5 +177,13 @@ def cost_usd(model_id, in_tokens, out_tokens):
     """
     _add_repo_to_path()
     from core import config                         # noqa: E402
-    return cost_from_tokens(config.MODEL_PRICES, resolve_model(model_id),
-                            in_tokens, out_tokens)
+    model = resolve_model(model_id)
+    cached = max(0, int(cache_read)) + max(0, int(cache_write))
+    uncached = max(0, int(in_tokens) - cached)
+    # Priced as three separate calls against the same card, so the arithmetic
+    # lives in exactly one place (cost_from_tokens) and stays per-million-safe.
+    return (cost_from_tokens(config.MODEL_PRICES, model, uncached, out_tokens)
+            + cost_from_tokens(config.MODEL_PRICES, model,
+                               round(cache_read * CACHE_READ_RATE), 0)
+            + cost_from_tokens(config.MODEL_PRICES, model,
+                               round(cache_write * CACHE_WRITE_RATE), 0))
