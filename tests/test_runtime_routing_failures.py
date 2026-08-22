@@ -51,12 +51,19 @@ class MalformedOutput(unittest.TestCase):
                         "the retry re-sent far more than a nudge")
 
     def test_two_malformed_outputs_force_route_to_the_gate(self):
+        """The ROUTING is the assertion here: two bad attempts, then the gate.
+
+        This scenario used to assert "ratified", which is how the empty-ratify
+        bug hid in a green suite for so long — the worker produced nothing at
+        all, and a gate willing to approve it made the run look successful.
+        Observed live on 2026-08-21. The routing is still correct; the outcome
+        is not a delivery."""
         d = ScriptedDispatch({"ceo": [garbage(0), garbage(1)],
                               "gate_agent": [ratify("assessed what exists")]})
         r = run(charter(), roster(), d)
         self.assertEqual(2, d.call_count("ceo"), "a third attempt was made")
         self.assertEqual(("ceo", "gate_agent"), r.path)
-        self.assertEqual("ratified", r.terminal_reason)
+        self.assertEqual("ratified_without_deliverable", r.terminal_reason)
 
     def test_the_gate_is_told_the_routing_was_malformed(self):
         d = ScriptedDispatch({"ceo": [garbage(0), garbage(1)],

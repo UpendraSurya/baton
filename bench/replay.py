@@ -75,7 +75,14 @@ def stub_dispatch(agent, baton, prompt):
     if agent.is_gate:
         body = '{"decision": "RATIFY", "summary": "dry run"}'
     elif baton.hop >= 2:
-        body = '{"decision": "PROPOSE_DONE", "summary": "dry run"}'
+        # Attaches a deliverable, because a well-behaved agent does. A stub that
+        # proposes done with nothing attached models a BROKEN agent, and since
+        # 2026-08-21 the runtime correctly refuses to call that a delivery
+        # (Guards.require_artifacts) — so this stub would have been proving the
+        # wiring works by driving it down the failure path.
+        body = ('{"decision": "PROPOSE_DONE", "summary": "dry run", '
+                '"artifacts": [{"path": "workspace/dry-run.md", '
+                '"description": "stub deliverable", "content": "dry run"}]}')
     else:
         to = sorted(agent.can_hand_to)[0]
         body = ('{"decision": "HANDOFF", "to": "%s", "goal": "dry run", '

@@ -301,7 +301,9 @@ class EndToEndThroughTheRuntime(unittest.TestCase):
                      agent_pool=frozenset(agents), acceptance_criteria=("x",),
                      budget_ceiling_usd=100.0, max_hops=5)
 
-        scripted = ['```handoff\n{"decision": "PROPOSE_DONE", "summary": "done"}\n```',
+        # PROPOSE_DONE carries the work product: a ratify with no artifact
+        # is not a delivery, and the runtime now says so.
+        scripted = ['```handoff\n{"decision": "PROPOSE_DONE", "summary": "done", "artifacts": [{"path": "out/result.json", "description": "the deliverable"}]}\n```',
                     '```handoff\n{"decision": "RATIFY", "summary": "verified"}\n```']
 
         class Sequence:

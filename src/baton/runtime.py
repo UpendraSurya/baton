@@ -25,7 +25,8 @@ from baton.errors import (BatonError, CharterInvalid, IllegalTarget,
 from baton.trace import MemoryTrace, TraceSink
 
 TERMINAL_REASONS: tuple[str, ...] = ("ratified", "budget_exhausted", "hops_exhausted", "stalled",
-                    "dispatch_failure", "charter_violation", "reject_cap_reached")
+                    "dispatch_failure", "charter_violation", "reject_cap_reached",
+                    "ratified_without_deliverable")
 
 # A run that reaches this has lost a stop rule. It is not a stop rule itself — it
 # is the alarm that says one is missing, and it raises rather than terminating so
@@ -71,6 +72,7 @@ class Guards:
     reject_cap: bool = True
     validate_target: bool = True
     render_legal_moves: bool = True
+    require_artifacts: bool = True
 
 
 @dataclass
@@ -304,6 +306,24 @@ def run(charter: Charter, agents: Mapping[str, AgentSpec], dispatch: Dispatch, *
                       **decision.to_dict()})
 
         if decision.kind is Kind.RATIFY:
+            # A ratification with nothing to point at is not a ratification.
+            # Observed live: a worker's routing block failed to parse twice, the
+            # runtime escalated to the gate, and the gate ratified an empty
+            # artifact set with prose that only restated the acceptance criteria.
+            # That run was recorded as DELIVERED. A gate asked to judge is
+            # strongly disposed to approve, so the existence of a deliverable has
+            # to be checked mechanically rather than asked about in a prompt.
+            #
+            # This terminates rather than rejecting onward: there is no honest
+            # agent to send it back to (the proposer may never have produced a
+            # decision at all), and "produced nothing" is a real outcome the
+            # bench must be able to see, not an error to retry away.
+            ratified = _merge_artifacts(baton.artifacts, decision.artifacts)
+            if guards.require_artifacts and not ratified:
+                return _finish(trace, st, "ratified_without_deliverable", baton,
+                               gate_summary=decision.summary,
+                               note=("the gate ratified with no artifact to "
+                                     "point at; nothing was delivered"))
             return _finish(trace, st, "ratified", baton,
                            gate_summary=decision.summary)
 

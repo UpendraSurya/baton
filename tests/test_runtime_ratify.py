@@ -11,7 +11,7 @@ from baton.errors import CharterInvalid
 from baton.runtime import TERMINAL_REASONS, run
 from baton.trace import MemoryTrace
 from tests.stub import (ScriptedDispatch, boom, handoff, propose_done,
-                        prose_then, ratify)
+                        propose_done_without_evidence, prose_then, ratify)
 
 
 def roster():
@@ -156,3 +156,67 @@ class RosterValidation(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RatifyRequiresADeliverable(unittest.TestCase):
+    """A gate asked "is this done?" is strongly disposed to say yes.
+
+    Observed live 2026-08-21 on mistral-large: a worker's routing block failed to
+    parse twice, the runtime escalated to the gate, and the gate ratified an EMPTY
+    artifact set with prose that only restated the acceptance criteria back. The
+    ledger recorded that run as `delivered`.
+
+    The contract already refused PROPOSE_DONE with no artifacts
+    (contract.py) — but the malformed-routing escalation reaches the gate WITHOUT
+    passing through PROPOSE_DONE, so that check was never on this path. The hole
+    was not a missing idea; it was one idea enforced on one of two routes in.
+    """
+
+    def _empty_ratify_run(self, **guard_kw):
+        from baton.runtime import Guards
+        d = ScriptedDispatch({"ceo": [prose_then(handoff("cto"))],
+                              "cto": [propose_done_without_evidence()],
+                              "gate_agent": [ratify("looks complete to me")]})
+        return run(charter(), roster(), d, guards=Guards(**guard_kw))
+
+    def test_a_ratify_with_no_artifact_is_not_a_delivery(self):
+        r = self._empty_ratify_run()
+        self.assertEqual("ratified_without_deliverable", r.terminal_reason)
+        self.assertIn("nothing was delivered", r.note)
+
+    def test_the_outcome_is_distinguishable_from_an_infrastructure_failure(self):
+        """bench/run.py maps dispatch_failure -> error (excluded from every rate)
+        and everything else -> blocked. Producing nothing is a real routing
+        outcome and must land in `blocked`, not be excused as an error."""
+        r = self._empty_ratify_run()
+        self.assertNotEqual("dispatch_failure", r.terminal_reason)
+        self.assertIn(r.terminal_reason, TERMINAL_REASONS)
+
+    def test_deleting_THIS_guard_alone_restores_the_bug(self):
+        """The anti-vacuity discipline: if the suite still passes with the guard
+        switched off, the guard was never what the test was testing."""
+        r = self._empty_ratify_run(require_artifacts=False)
+        self.assertEqual("ratified", r.terminal_reason,
+                         "with the guard off the empty ratify must sail through "
+                         "again — otherwise something else is catching this and "
+                         "the new guard is dead code")
+
+    def test_a_ratify_WITH_an_artifact_still_ratifies(self):
+        """The guard must not make the happy path unreachable."""
+        d = ScriptedDispatch({"ceo": [prose_then(handoff("cto"))],
+                              "cto": [propose_done()],
+                              "gate_agent": [ratify()]})
+        r = run(charter(), roster(), d)
+        self.assertEqual("ratified", r.terminal_reason)
+
+    def test_an_artifact_produced_EARLIER_in_the_run_still_counts(self):
+        """Artifacts travel on the baton. A deliverable attached at hop 1 and
+        ratified at hop 5 is delivered — the check is 'does the work exist',
+        not 'did the gate personally receive it this hop'."""
+        from baton.packet import ArtifactRef
+        art = ArtifactRef(path="workspace/spec.md", description="written early")
+        d = ScriptedDispatch({"ceo": [prose_then(handoff("cto", artifacts=[art]))],
+                              "cto": [propose_done_without_evidence()],
+                              "gate_agent": [ratify()]})
+        r = run(charter(), roster(), d)
+        self.assertEqual("ratified", r.terminal_reason)
