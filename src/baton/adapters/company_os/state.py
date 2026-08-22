@@ -43,6 +43,18 @@ def _home(home=None):
     return path
 
 
+def writable_home(home=None):
+    """Validate a state home and return it, refusing the canonical one.
+
+    Call this BEFORE writing anything under `home`. persist() checks too, but a
+    caller that opens a trace file under the home first has already written to
+    it by the time persist refuses — observed 2026-08-22, a trace landed in
+    ~/.company-os/traces/ before the refusal fired. A guard that runs after the
+    first write is not a guard.
+    """
+    return _home(home)
+
+
 def persist(result, project_id, home=None):
     """Write a RunResult's trace into state.db. Returns the number of rows."""
     base = _home(home)

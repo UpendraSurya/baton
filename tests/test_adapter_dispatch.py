@@ -302,3 +302,25 @@ class TheHostBindingFailsHonestly(unittest.TestCase):
         # escaping an adapter is indistinguishable from a bug in the kernel.
         from baton.errors import BatonError
         self.assertTrue(issubclass(D.HostUnavailable, BatonError))
+
+
+class TheHomeIsValidatedBeforeAnythingIsWritten(unittest.TestCase):
+    """persist() refuses the canonical home — but a caller that builds a trace
+    file under that home first has already written to it by the time the
+    refusal fires. Observed 2026-08-22: a trace landed in ~/.company-os/traces/
+    before persist() raised. The guard has to be callable UP FRONT."""
+
+    def test_writable_home_returns_a_safe_home(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(S.writable_home(d), pathlib.Path(d))
+
+    def test_writable_home_refuses_canonical_without_writing(self):
+        with self.assertRaises(RuntimeError):
+            S.writable_home(S.CANONICAL_HOME)
+
+    def test_writable_home_refuses_a_symlink_to_canonical(self):
+        with tempfile.TemporaryDirectory() as d:
+            link = pathlib.Path(d) / "sneaky"
+            link.symlink_to(S.CANONICAL_HOME)
+            with self.assertRaises(RuntimeError):
+                S.writable_home(link)
