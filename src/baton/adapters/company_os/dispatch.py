@@ -93,6 +93,7 @@ def real_dispatch(agent, baton, prompt, *, model_id=None, repo_dir=None, stub=Fa
     return DispatchResult(text=text,
                           cost_usd=cost_usd(model, out.in_tokens, out.out_tokens),
                           in_tokens=out.in_tokens, out_tokens=out.out_tokens,
+                          model_id=model,   # RESOLVED, not the registry alias
                           error=out.notes if failed else "")
 
 

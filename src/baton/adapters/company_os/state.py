@@ -58,7 +58,9 @@ def persist(result, project_id, home=None):
             con.execute(
                 "insert into cost_ledger (project_id, node, model_id, in_tokens,"
                 " out_tokens, usd, ts) values (?,?,?,?,?,?,?)",
-                (project_id, rec.get("agent", ""), rec.get("model_id", "baton"),
+                # NOT "baton" — the router is not a model, and a row labelled
+                # with it looks attributed while being unattributable.
+                (project_id, rec.get("agent", ""), rec.get("model_id") or "unknown",
                  rec.get("in_tokens", 0), rec.get("out_tokens", 0),
                  rec.get("cost_usd", 0.0), rec.get("ts", now)))
             rows += 1

@@ -221,7 +221,7 @@ def provider(api_key: str | None = None, model: str | None = None, *,
         return DispatchResult(
             text=text,
             cost_usd=cost_from_tokens(rate_card, model_id, in_tok, out_tok),
-            in_tokens=in_tok, out_tokens=out_tok)
+            in_tokens=in_tok, out_tokens=out_tok, model_id=model_id)
 
     dispatch.model_id = model_id
     dispatch.provider_name = vendor or "openai_compat"

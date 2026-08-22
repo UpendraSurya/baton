@@ -55,6 +55,10 @@ class DispatchResult:
     in_tokens: int = 0
     out_tokens: int = 0
     error: str = ""
+    # Which model actually ran. Evidence, not a requirement: a provider that
+    # leaves it empty still runs, but its spend cannot be reconciled against a
+    # bill afterwards, and a host ledger has nothing honest to file it under.
+    model_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -163,6 +167,7 @@ def _hop(agent, baton, charter, st, dispatch, guards, trace):
         trace.append({"event": "dispatch", "hop": st.hop, "agent": agent.name,
                       "attempt": attempt, "cost_usd": res.cost_usd,
                       "in_tokens": res.in_tokens, "out_tokens": res.out_tokens,
+                      "model_id": res.model_id,
                       "error": res.error, "output_chars": len(res.text or "")})
         if res.error:
             return None, "dispatch_failure"

@@ -167,7 +167,7 @@ def provider(api_key: str | None = None, model: str = MODEL, *,
         return DispatchResult(
             text=text,
             cost_usd=cost_from_tokens(rate_card, model, in_tok, out_tok),
-            in_tokens=in_tok, out_tokens=out_tok)
+            in_tokens=in_tok, out_tokens=out_tok, model_id=model)
 
     dispatch.model_id = model
     dispatch.provider_name = "gemini"
