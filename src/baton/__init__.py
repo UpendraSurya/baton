@@ -37,7 +37,7 @@ from baton.agent import GATE, WORKER, AgentSpec
 from baton.charter import Charter
 from baton.errors import (BatonError, CharterInvalid, IllegalTarget,
                           ParseFailure, RoleViolation, TraceCorrupt)
-from baton import plan
+from baton import plan, reputation
 from baton.packet import ArtifactRef, Baton, Decision, Kind
 from baton.runtime import (TERMINAL_REASONS, DispatchResult, Guards, RunResult,
                            run)
@@ -54,6 +54,8 @@ __all__ = [
     "ArtifactRef", "Decision", "Kind", "GATE", "WORKER",
     # pre-flight
     "plan",
+    # evidence about the agents themselves
+    "reputation",
     # failures
     "BatonError", "CharterInvalid", "IllegalTarget", "ParseFailure",
     "RoleViolation", "TraceCorrupt",
