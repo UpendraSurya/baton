@@ -73,7 +73,15 @@ def replay_one(pid, ptype, brief, dispatch):
 def stub_dispatch(agent, baton, prompt):
     """Wiring proof only. Hands down one layer, then proposes done."""
     if agent.is_gate:
-        body = '{"decision": "RATIFY", "summary": "dry run"}'
+        # Coverage and a real-sized deliverable, because a well-behaved gate
+        # names what satisfies each criterion. A stub that omits it models a
+        # BROKEN gate and would prove the wiring works by driving the failure
+        # path — the same trap the empty-artifact stub fell into.
+        body = ('{"decision": "RATIFY", "summary": "dry run", '
+                # One entry per criterion; repeated because a dry run does not
+                # know how many the replayed charter carries.
+                '"coverage": %s}' % ('["workspace/dry-run.md"]' * 0 +
+                                     str(["workspace/dry-run.md"] * 12).replace("'", '"')))
     elif baton.hop >= 2:
         # Attaches a deliverable, because a well-behaved agent does. A stub that
         # proposes done with nothing attached models a BROKEN agent, and since
@@ -82,7 +90,9 @@ def stub_dispatch(agent, baton, prompt):
         # wiring works by driving it down the failure path.
         body = ('{"decision": "PROPOSE_DONE", "summary": "dry run", '
                 '"artifacts": [{"path": "workspace/dry-run.md", '
-                '"description": "stub deliverable", "content": "dry run"}]}')
+                '"description": "stub", "content": '
+                '"The dry-run deliverable, in full. '
+                'It is long enough to be real work rather than a claim about it."}]}')
     else:
         to = sorted(agent.can_hand_to)[0]
         body = ('{"decision": "HANDOFF", "to": "%s", "goal": "dry run", '
