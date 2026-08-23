@@ -78,9 +78,11 @@ class CanHandTo(unittest.TestCase):
         # executive -> operations
         self.assertIn("master_intake_agent", R.can_hand_to("ceo", self.reg))
 
-    def test_an_agent_does_NOT_reach_its_own_layer(self):
-        # cto and cpo are both executive. Peer handoff goes through the gate.
-        self.assertNotIn("cpo", R.can_hand_to("cto", self.reg))
+    def test_an_agent_reaches_its_own_layer(self):
+        """Peer handoff. Restored 2026-08-23 after ForgeLine: a layer holds the
+        people who do different KINDS of the same work, and a builder that
+        cannot hand to a peer cannot assemble a multi-specialist deliverable."""
+        self.assertIn("cpo", R.can_hand_to("cto", self.reg))
 
     def test_an_agent_never_hands_to_itself(self):
         for name in ("ceo", "cto", "frontend_engineer", "tester"):
@@ -113,14 +115,21 @@ class CanHandTo(unittest.TestCase):
                 moves = R.can_hand_to(name, self.reg)
                 self.assertGreater(len(moves), 1, f"{name} can only reach the gate")
 
-    def test_the_median_choice_is_inside_the_design_target(self):
-        """The design note asked for 5-10 legal moves per hop. 'own + below'
-        gave 24. If this fails, the rule has drifted back toward a free-for-all."""
-        import statistics
-        sizes = [len(R.can_hand_to(n, self.reg))
-                 for layer in R.LAYERS for n in self.reg[layer]
-                 if not n.startswith("_")]
-        self.assertLessEqual(statistics.median(sizes), 10)
+    def test_no_agent_faces_the_whole_firm(self):
+        """The registry-wide size is NOT the number that governs a run — a
+        whitelist is intersected with the staffed roster, where the median is
+        roughly half this. What must never happen is an agent facing every
+        agent in the firm, which is the free-for-all the layer rule exists to
+        prevent. Roster-level sizing is asserted where a roster exists:
+        company-os scripts/smoke_baton_router.py."""
+        everyone = sum(len([n for n in self.reg[l] if not n.startswith("_")])
+                       for l in R.LAYERS)
+        for layer in R.LAYERS:
+            for name in self.reg[layer]:
+                if name.startswith("_"):
+                    continue
+                self.assertLess(len(R.can_hand_to(name, self.reg)), everyone * 0.75,
+                                f"{name} faces most of the firm")
 
 
 @needs_host

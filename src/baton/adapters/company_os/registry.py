@@ -62,29 +62,34 @@ def layer_of(name, reg):
 
 
 def can_hand_to(name, reg, gate_agent="gate_agent"):
-    """The layer BELOW, plus the gate. Work flows downhill.
+    """Own layer + the layer below + the gate. Work flows sideways and downhill.
 
-    Replaces "own layer + below" (2026-08-23). That rule gave a median 24-way
-    choice per hop, because the delivery layer alone holds 18 agents, while the
-    design note asked for 5-10. Choosing from 24 names on every hop costs prompt
-    tokens on every re-send and gives a contract-marginal model more ways to
-    pick badly. This rule's median is 7.
+    History, because this flipped twice on evidence:
 
-    Peer handoff is deliberately gone: an agent that wants a sibling routes
-    through the gate, which means every sideways move is seen and judged rather
-    than arranged privately between two agents.
+    "below only" (2026-08-23, morning) looked right on paper — registry-wide
+    median 7 against a design target of 5-10, versus 24 for own+below. That
+    comparison used the wrong denominator. Whitelists are intersected with the
+    STAFFED roster, and on a real one the medians are 3 and 16, not 7 and 24.
 
-    The bottom layer has nothing below it and falls back to its OWN layer.
-    Without that, those agents reach only the gate — a whitelist of one, where
-    the single legal move is to end the run. That is the dead end that made an
-    entry agent finish a project before any work happened.
+    Three legal moves is not enough. The ForgeLine BRD — a brief needing ML,
+    ETL, WebGL, CRM and privacy specialists at once — staffed 32 agents and
+    used FOUR: every delivery specialist is a peer of every other, so an
+    engineer could not hand to the specialist the work needed. The run
+    ping-ponged lead_engineer <-> gate until the reject cap fired.
+
+    Peer handoff is therefore not a luxury: a layer holds the people who do
+    different KINDS of the same work, which is exactly who a builder needs next.
+
+    The bottom layer has nothing below it and gets its own layer anyway, which
+    the union already provides — no agent can reach only the gate.
     """
     layer = layer_of(name, reg)
     if not layer:
         return frozenset({gate_agent})
     i = LAYERS.index(layer)
-    below = LAYERS[i + 1] if i + 1 < len(LAYERS) else None
-    reachable = set(_members(reg, below)) if below else set(_members(reg, layer))
+    reachable = set(_members(reg, layer))
+    if i + 1 < len(LAYERS):
+        reachable |= set(_members(reg, LAYERS[i + 1]))
     reachable.add(gate_agent)
     reachable.discard(name)
     return frozenset(reachable)
