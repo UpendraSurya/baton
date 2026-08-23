@@ -84,6 +84,7 @@ class Guards:
     require_coverage: bool = True
     require_substance: bool = True
     wall_clock: bool = True
+    preflight: bool = True
 
 
 @dataclass
@@ -365,7 +366,7 @@ def _check_roster(charter: Charter, agents: Mapping[str, AgentSpec]) -> None:
 
 def run(charter: Charter, agents: Mapping[str, AgentSpec], dispatch: Dispatch, *,
         trace: Optional[TraceSink] = None, guards: Optional[Guards] = None,
-        trace_id: Optional[str] = None) -> RunResult:
+        trace_id: Optional[str] = None, usd_per_call: float = 0.0) -> RunResult:
     """Run a multi-agent task in which the agents choose who goes next.
 
     Args:
@@ -375,6 +376,10 @@ def run(charter: Charter, agents: Mapping[str, AgentSpec], dispatch: Dispatch, *
         trace: where hops are recorded. Any `TraceSink`; defaults to in-memory.
         guards: which defences are active. Defaults to all of them.
         trace_id: correlation id; generated when omitted.
+        usd_per_call: what ONE model call costs you. Supply it and the run is
+            pre-flighted against the ceiling and REFUSED before a cent is
+            spent if the charter was never survivable. Omitted, the runtime
+            has no basis for that judgement and does not invent one.
 
     Returns:
         RunResult, whose `terminal_reason` is always one of TERMINAL_REASONS.
@@ -387,6 +392,13 @@ def run(charter: Charter, agents: Mapping[str, AgentSpec], dispatch: Dispatch, *
     charter.validate()
     _check_roster(charter, agents)
     guards = guards or Guards()
+    # Pre-flight. A ceiling breached on hop 1 is a CONFIGURATION error, not a
+    # run outcome, so it is refused here beside the other CharterInvalid checks
+    # rather than discovered by spending a call. Only possible when the caller
+    # says what a call costs — the runtime will not invent a number to refuse on.
+    if guards.preflight and usd_per_call > 0:
+        from baton import plan as _plan
+        _plan.estimate(charter, agents, usd_per_call=usd_per_call).raise_if_infeasible()
     trace = trace or MemoryTrace(trace_id=trace_id or uuid.uuid4().hex[:12])
 
     st = _State()

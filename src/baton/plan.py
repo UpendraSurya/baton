@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Mapping
 if TYPE_CHECKING:
     from baton.agent import AgentSpec
     from baton.charter import Charter
+from baton.errors import CharterInvalid
 
 # A hop can spend two calls: the dispatch plus one repair retry.
 CALLS_PER_HOP: int = 2
@@ -41,6 +42,20 @@ class Estimate:
     warnings: tuple[str, ...] = ()
     unreachable: tuple[str, ...] = ()
     dead_ends: tuple[str, ...] = ()
+
+    def raise_if_infeasible(self) -> None:
+        """Raise CharterInvalid if this charter was never survivable.
+
+        The reporting form (`feasible`, `problems`) is for a human reading a
+        plan. This is the form that stops a run. Until 2026-08-23 only the
+        former existed while the module docstring promised the latter, so the
+        promise was kept by whichever caller happened to read the flag — which
+        is to say, by nobody.
+        """
+        if self.problems:
+            raise CharterInvalid(
+                "this charter cannot survive its own budget: "
+                + "; ".join(self.problems))
 
     def render(self) -> str:
         lines = [

@@ -30,8 +30,11 @@ agents choosing their own successor beats a graph you drew yourself — its own
 benchmark declined to show that.
 
 What *is* proven is the **runtime**: every run ends for exactly one of ten
-declared reasons. A 4,000-run adversarial suite drives hostile agents at it and
-has never produced a run that ended any other way; eight of the ten arise
+declared reasons. An adversarial suite drives deliberately hostile agents at it
+over **6,200 randomised runs** — 4,000 of them the termination property itself,
+2,000 checking the backstop is never reached with every guard on, 200 checking a
+gate outside the pool is always refused — and it has never produced a run that
+ended any other way; eight of the ten arise
 spontaneously in that suite, and the two newest —
 `ratified_without_coverage` and `time_exhausted` — are covered by targeted tests
 rather than by the fuzzer. If you want agents to route themselves, this is the envelope that
@@ -41,6 +44,26 @@ in [docs/measuring-dynamic-routing.md](docs/measuring-dynamic-routing.md).
 **Zero dependencies, and it stays that way.** Providers talk HTTP through `urllib`
 from the standard library — no vendor SDK, no transitive tree. A test fails the
 build if that ever changes.
+
+The footprint, measured rather than asserted — `pip install` into an empty venv,
+Python 3.10 on an M-series Mac:
+
+| | |
+|---|---|
+| wheel | **50 KB** (`baton_kernel-0.1.0-py3-none-any.whl`, 51,642 bytes) |
+| packages added to the environment | **1** — its own; `Requires-Dist` is empty |
+| cold import, installed | **~25 ms** (5 runs: 25.5 / 25.6 / 25.4 / 25.7 / 25.4) |
+
+Reproduce it:
+
+```bash
+python3 -m build --wheel && python3 -m venv /tmp/v && /tmp/v/bin/pip install dist/*.whl
+/tmp/v/bin/pip list --format=freeze          # baton-kernel, pip, setuptools
+/tmp/v/bin/python -X importtime -c "import baton" 2>&1 | tail -1
+```
+
+Numbers move with machine and interpreter, so run it on yours rather than
+trusting these. What does not move is the package count.
 
 ```
 baton/              the core: Agent, Baton, Charter, Runtime, Trace
