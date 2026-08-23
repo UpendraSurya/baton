@@ -98,6 +98,16 @@ class RunResult:
     gate_summary: str = ""
     note: str = ""
     path: tuple[str, ...] = ()
+    # What was ratified. Empty for every non-ratified terminal reason, so a
+    # caller cannot mistake a half-filled matrix for a delivery.
+    #
+    # `last_baton.artifacts` is NOT the same set: that is what ARRIVED at the
+    # gate, before the gate attached its own and before carried artifacts were
+    # stripped to pointers. A consumer rebuilding the runtime's own conclusion
+    # by scanning the trace is the tell that a return value was missing —
+    # reported from outside by a project consuming the wheel.
+    coverage: tuple[str, ...] = ()
+    artifacts: tuple[ArtifactRef, ...] = ()
     last_baton: Optional[Baton] = None
     trace: Optional[TraceSink] = None
 
@@ -146,7 +156,9 @@ def _gate_baton(charter, trace_id, st, from_agent, carried, goal, artifacts=(),
 
 
 def _finish(trace: TraceSink, st: _State, reason: str, baton: Baton,
-            gate_summary: str = "", note: str = "") -> RunResult:
+            gate_summary: str = "", note: str = "",
+            coverage: tuple[str, ...] = (),
+            artifacts: tuple[ArtifactRef, ...] = ()) -> RunResult:
     if reason not in TERMINAL_REASONS:
         raise BatonError(f"{reason!r} is not a terminal reason")
     trace.append({"event": "run_end", "terminal_reason": reason, "hops": st.hop,
@@ -154,7 +166,8 @@ def _finish(trace: TraceSink, st: _State, reason: str, baton: Baton,
                   "gate_summary": gate_summary, "note": note})
     return RunResult(trace_id=trace.trace_id, terminal_reason=reason, hops=st.hop,
                      spend_usd=st.spend, gate_summary=gate_summary, note=note,
-                     path=tuple(st.path), last_baton=baton, trace=trace)
+                     path=tuple(st.path), last_baton=baton, trace=trace,
+                     coverage=tuple(coverage), artifacts=tuple(artifacts))
 
 
 def _is_stub(a):
@@ -200,10 +213,16 @@ def _ratify_problem(decision, artifacts, charter, guards):
         criteria = charter.acceptance_criteria
         cover = decision.coverage
         if len(cover) < len(criteria):
+            # Coverage is positional, so the criteria with nothing behind them
+            # are exactly the ones past the end. Naming them saves every
+            # consumer from re-deriving it — reported from outside.
+            missing = list(criteria[len(cover):])
+            shown = "; ".join(f"{c!r}" for c in missing[:3])
+            more = f" (+{len(missing) - 3} more)" if len(missing) > 3 else ""
             return ("ratified_without_coverage",
                     f"the gate ratified {len(criteria)} acceptance criteria "
-                    f"while naming work for {len(cover)}; it must say which "
-                    "artifact satisfies which criterion")
+                    f"while naming work for {len(cover)}. Nothing is cited for: "
+                    f"{shown}{more}")
         paths = {a.path for a in artifacts}
         missing = [c for c in cover[:len(criteria)] if c not in paths]
         if missing:
@@ -512,7 +531,8 @@ def run(charter: Charter, agents: Mapping[str, AgentSpec], dispatch: Dispatch, *
                 return _finish(trace, st, reason, baton,
                                gate_summary=decision.summary, note=note)
             return _finish(trace, st, "ratified", baton,
-                           gate_summary=decision.summary)
+                           gate_summary=decision.summary,
+                           coverage=decision.coverage, artifacts=ratified)
 
         if decision.kind is Kind.REJECT:
             proposer = st.last_proposer or decision.to

@@ -102,6 +102,15 @@ charter = Charter(
 result = run(charter, agents, gemini.provider())   # reads GEMINI_API_KEY
 print(result.terminal_reason, result.path, result.spend_usd)
 # ratified ('researcher', 'writer', 'gate') 0.0039
+
+# What was ratified, without reading the trace:
+result.coverage     # ('draft.md', 'draft.md') — one artifact per criterion, in order
+result.artifacts    # the ArtifactRefs the gate checked that coverage against
+                    # both are empty for every terminal reason except 'ratified'
+
+# The hop-by-hop record. `records()` is a METHOD, not a property:
+for record in result.trace.records():
+    print(record["event"], record.get("agent", ""))
 ```
 
 Nobody wrote that route. The agents chose it.
