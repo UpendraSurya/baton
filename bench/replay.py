@@ -70,6 +70,11 @@ def replay_one(pid, ptype, brief, dispatch):
     return run(ch, agents, dispatch, trace=trace)
 
 
+STUB_PATHS = [f"workspace/dry-run-{i}.md" for i in range(12)]
+STUB_BODY = ("The dry-run deliverable, in full. It is long enough to be "
+             "real work rather than a claim about it.")
+
+
 def stub_dispatch(agent, baton, prompt):
     """Wiring proof only. Hands down one layer, then proposes done."""
     if agent.is_gate:
@@ -77,11 +82,12 @@ def stub_dispatch(agent, baton, prompt):
         # names what satisfies each criterion. A stub that omits it models a
         # BROKEN gate and would prove the wiring works by driving the failure
         # path — the same trap the empty-artifact stub fell into.
+        # DISTINCT paths, one per criterion. A stub citing a single artifact
+        # for everything models a gate gaming its own coverage check — which
+        # the runtime now refuses, so the stub would again have been proving
+        # the wiring works by driving the failure path.
         body = ('{"decision": "RATIFY", "summary": "dry run", '
-                # One entry per criterion; repeated because a dry run does not
-                # know how many the replayed charter carries.
-                '"coverage": %s}' % ('["workspace/dry-run.md"]' * 0 +
-                                     str(["workspace/dry-run.md"] * 12).replace("'", '"')))
+                '"coverage": %s}' % json.dumps(STUB_PATHS))
     elif baton.hop >= 2:
         # Attaches a deliverable, because a well-behaved agent does. A stub that
         # proposes done with nothing attached models a BROKEN agent, and since
@@ -89,10 +95,9 @@ def stub_dispatch(agent, baton, prompt):
         # (Guards.require_artifacts) — so this stub would have been proving the
         # wiring works by driving it down the failure path.
         body = ('{"decision": "PROPOSE_DONE", "summary": "dry run", '
-                '"artifacts": [{"path": "workspace/dry-run.md", '
-                '"description": "stub", "content": '
-                '"The dry-run deliverable, in full. '
-                'It is long enough to be real work rather than a claim about it."}]}')
+                '"artifacts": %s}' % json.dumps(
+                    [{"path": q, "description": "stub", "content": STUB_BODY}
+                     for q in STUB_PATHS]))
     else:
         to = sorted(agent.can_hand_to)[0]
         body = ('{"decision": "HANDOFF", "to": "%s", "goal": "dry run", '
