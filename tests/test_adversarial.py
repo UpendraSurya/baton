@@ -14,6 +14,7 @@ on failure so any counterexample is reproducible exactly.
 
 This is the test that would catch a regression no example-based test would.
 """
+import pathlib
 import random
 import unittest
 
@@ -206,6 +207,33 @@ class EveryRunTerminatesJudged(unittest.TestCase):
 
         self.assertGreaterEqual(len(reasons), 5,
                                 "the outcome space collapsed — most reasons unreachable")
+
+        # Every DECLARED reason must be accounted for: either this suite produces
+        # it spontaneously, or a named test reaches it deliberately. A bare
+        # ">= 5" floor let TERMINAL_REASONS grow from eight to ten without a
+        # murmur, and the README went on claiming "all eight observed" — evidence
+        # the suite had stopped producing. Adding a reason now forces a choice:
+        # teach the generators to reach it, or name where it IS reached.
+        COVERED_ELSEWHERE = {
+            # reason -> the test that drives it on purpose
+            "ratified_without_coverage": "tests/test_ratify_is_checked.py",
+            "time_exhausted": "tests/test_runtime_wall_clock.py",
+        }
+        unaccounted = [r for r in TERMINAL_REASONS
+                       if r not in reasons and r not in COVERED_ELSEWHERE]
+        self.assertFalse(
+            unaccounted,
+            f"declared terminal reason(s) {unaccounted} are neither produced by "
+            f"{ITERATIONS} adversarial runs nor listed in COVERED_ELSEWHERE. A "
+            f"reason nothing reaches is a claim with no evidence behind it: "
+            f"either extend the generators or name the test that covers it.")
+        for reason, where in COVERED_ELSEWHERE.items():
+            self.assertIn(reason, TERMINAL_REASONS,
+                          f"COVERED_ELSEWHERE names {reason}, which is no longer "
+                          f"a declared reason — delete the entry")
+            self.assertTrue(
+                (pathlib.Path(__file__).resolve().parent.parent / where).is_file(),
+                f"{reason} is excused by {where}, which does not exist")
 
     def test_with_every_guard_enabled_the_backstop_is_never_reached(self):
         """The strongest single claim: with the defences on, nothing the agents
