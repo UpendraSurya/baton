@@ -152,3 +152,37 @@ class StubsAreNotDeliverables(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OneArtifactCannotSatisfyEverything(unittest.TestCase):
+    """Observed on ForgeLine run 7: the gate cited the SAME path for all six
+    criteria — a deployed web app, a 3D viewer, an ETL pipeline, an ML model,
+    Stripe billing and GDPR handling — and the coverage check passed, because
+    the path existed and was not a stub.
+
+    Repeating a path is legitimate when two criteria genuinely share a
+    deliverable. One file satisfying six independent requirements is not a
+    delivery, it is the citation being gamed.
+    """
+
+    def test_one_path_for_many_criteria_is_refused(self):
+        six = ("a", "b", "c", "d", "e", "f")
+        r = go([done(art("everything.json", REAL)),
+                ratify(["everything.json"] * 6),
+                ratify(["everything.json"] * 6)],
+               charter_kw={"acceptance_criteria": six})
+        self.assertEqual(r.terminal_reason, "ratified_without_coverage")
+        self.assertIn("everything.json", r.note)
+
+    def test_two_criteria_sharing_one_artifact_is_fine(self):
+        # A webhook that is both "billing works" and "signatures verified" is
+        # one honest deliverable, not a dodge.
+        r = go([done(art("hook.py", REAL)), ratify(["hook.py", "hook.py"])])
+        self.assertEqual(r.terminal_reason, "ratified")
+
+    def test_distinct_work_for_distinct_criteria_passes(self):
+        six = ("a", "b", "c", "d", "e", "f")
+        paths = [f"p{i}.py" for i in range(6)]
+        r = go([done(*[art(p, REAL) for p in paths]), ratify(paths)],
+               charter_kw={"acceptance_criteria": six})
+        self.assertEqual(r.terminal_reason, "ratified")

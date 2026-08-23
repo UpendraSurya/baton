@@ -203,6 +203,17 @@ def _ratify_problem(decision, artifacts, charter, guards):
             return ("ratified_without_coverage",
                     f"the gate cited artifacts that do not exist: "
                     f"{', '.join(missing)}")
+        # Repeating a path is fine when two criteria share a deliverable. ONE
+        # file answering many independent requirements is the citation being
+        # gamed — observed on ForgeLine, where a single topology_library.json
+        # was cited for a web app, a 3D viewer, an ETL pipeline, an ML model,
+        # billing and GDPR alike.
+        cited = set(cover[:len(criteria)])
+        if len(criteria) >= 3 and len(cited) == 1:
+            return ("ratified_without_coverage",
+                    f"the gate cited one artifact ({cited.pop()}) for all "
+                    f"{len(criteria)} criteria; independent requirements need "
+                    "independent work")
     return None
 
 
