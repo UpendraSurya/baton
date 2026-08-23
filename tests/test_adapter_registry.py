@@ -60,34 +60,67 @@ class Layers(unittest.TestCase):
 
 @needs_host
 class CanHandTo(unittest.TestCase):
+    """Work flows DOWNHILL: an agent hands to the layer below it, plus the gate.
+
+    Chosen 2026-08-23 over "own layer + below", which produced a median 24-way
+    choice per hop because the delivery layer alone holds 18 agents. The design
+    note asked for 5-10; this rule gives a median of 7.
+
+    The bottom layer has nothing below it, so it falls back to its OWN layer.
+    Without that fallback those agents can only reach the gate, which is the
+    dead-end that made an entry agent end a run before any work happened.
+    """
+
     def setUp(self):
         self.reg = R.load_registry()
 
-    def test_an_agent_can_reach_its_own_layer(self):
-        moves = R.can_hand_to("cto", self.reg)
-        self.assertIn("cpo", moves)
-        self.assertNotIn("cto", moves, "an agent must not hand to itself")
-
-    def test_an_agent_can_reach_the_layer_below(self):
+    def test_an_agent_reaches_the_layer_below(self):
+        # executive -> operations
         self.assertIn("master_intake_agent", R.can_hand_to("ceo", self.reg))
+
+    def test_an_agent_does_NOT_reach_its_own_layer(self):
+        # cto and cpo are both executive. Peer handoff goes through the gate.
+        self.assertNotIn("cpo", R.can_hand_to("cto", self.reg))
+
+    def test_an_agent_never_hands_to_itself(self):
+        for name in ("ceo", "cto", "frontend_engineer", "tester"):
+            self.assertNotIn(name, R.can_hand_to(name, self.reg))
 
     def test_an_agent_cannot_reach_two_layers_down(self):
         self.assertNotIn("frontend_engineer", R.can_hand_to("ceo", self.reg))
+
+    def test_the_bottom_layer_falls_back_to_its_own_layer(self):
+        bottom = R.LAYERS[-1]
+        peers = [a for a in self.reg[bottom] if not a.startswith("_")]
+        name = peers[0]
+        moves = R.can_hand_to(name, self.reg)
+        self.assertGreater(len(moves), 1,
+                           "the bottom layer would dead-end at the gate")
+        self.assertTrue(set(moves) & (set(peers) - {name}))
 
     def test_the_gate_is_always_reachable(self):
         for name in ("ceo", "frontend_engineer", "tester", "copywriter"):
             self.assertIn("gate_agent", R.can_hand_to(name, self.reg),
                           f"{name} cannot reach the gate")
 
-    def test_whitelists_stay_well_under_the_49_way_choice(self):
-        """The whole point of the layer rule: a 49-way choice per hop destroys
-        routing quality. If this ever fails, the layer rule has stopped working."""
+    def test_nobody_dead_ends(self):
+        """A whitelist of only the gate means that agent can never do anything
+        except end the run. That is the bug this rule exists to avoid."""
         for layer in R.LAYERS:
             for name in self.reg[layer]:
-                if name.startswith("_"):
+                if name.startswith("_") or name == "gate_agent":
                     continue
-                n = len(R.can_hand_to(name, self.reg))
-                self.assertLessEqual(n, 30, f"{name} has a {n}-way choice")
+                moves = R.can_hand_to(name, self.reg)
+                self.assertGreater(len(moves), 1, f"{name} can only reach the gate")
+
+    def test_the_median_choice_is_inside_the_design_target(self):
+        """The design note asked for 5-10 legal moves per hop. 'own + below'
+        gave 24. If this fails, the rule has drifted back toward a free-for-all."""
+        import statistics
+        sizes = [len(R.can_hand_to(n, self.reg))
+                 for layer in R.LAYERS for n in self.reg[layer]
+                 if not n.startswith("_")]
+        self.assertLessEqual(statistics.median(sizes), 10)
 
 
 @needs_host

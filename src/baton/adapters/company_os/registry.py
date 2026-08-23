@@ -62,14 +62,29 @@ def layer_of(name, reg):
 
 
 def can_hand_to(name, reg, gate_agent="gate_agent"):
-    """own layer + the layer below + the gate, minus the agent itself."""
+    """The layer BELOW, plus the gate. Work flows downhill.
+
+    Replaces "own layer + below" (2026-08-23). That rule gave a median 24-way
+    choice per hop, because the delivery layer alone holds 18 agents, while the
+    design note asked for 5-10. Choosing from 24 names on every hop costs prompt
+    tokens on every re-send and gives a contract-marginal model more ways to
+    pick badly. This rule's median is 7.
+
+    Peer handoff is deliberately gone: an agent that wants a sibling routes
+    through the gate, which means every sideways move is seen and judged rather
+    than arranged privately between two agents.
+
+    The bottom layer has nothing below it and falls back to its OWN layer.
+    Without that, those agents reach only the gate — a whitelist of one, where
+    the single legal move is to end the run. That is the dead end that made an
+    entry agent finish a project before any work happened.
+    """
     layer = layer_of(name, reg)
     if not layer:
         return frozenset({gate_agent})
     i = LAYERS.index(layer)
-    reachable = set(_members(reg, layer))
-    if i + 1 < len(LAYERS):
-        reachable |= set(_members(reg, LAYERS[i + 1]))
+    below = LAYERS[i + 1] if i + 1 < len(LAYERS) else None
+    reachable = set(_members(reg, below)) if below else set(_members(reg, layer))
     reachable.add(gate_agent)
     reachable.discard(name)
     return frozenset(reachable)
