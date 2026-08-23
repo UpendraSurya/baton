@@ -278,3 +278,46 @@ class RepairNudgeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EveryExampleInAPromptMustParse(unittest.TestCase):
+    """A worked example in a prompt is INSTRUCTION, not illustration.
+
+    The RATIFY example once read `"coverage": [<one path per criterion>]`,
+    which is not valid JSON. Models copied it back verbatim and the gate failed
+    to route on 67% of dispatches with Claude and 75% with mistral-small — a
+    contract that could not be obeyed, read as a model that would not obey it.
+
+    Placeholders belong inside quotes. This test walks every fenced handoff
+    block the renderer produces, for every role, and parses it.
+    """
+
+    def _prompts(self):
+        from baton.agent import GATE, AgentSpec
+        from baton.charter import Charter
+        from baton.contract import render_prompt
+        from baton.packet import Baton
+        worker = AgentSpec("w", "# W", frozenset({"g", "x"}))
+        gate = AgentSpec("g", "# G", frozenset({"w"}), role=GATE)
+        ch = Charter(brief="b", entry_agent="w", gate_agent="g",
+                     agent_pool=frozenset({"w", "g", "x"}),
+                     acceptance_criteria=("c1", "c2"),
+                     budget_ceiling_usd=1.0, max_hops=4)
+        b = Baton(trace_id="t", hop=1, from_agent="w", to_agent="g", goal="go")
+        return [render_prompt(a, b, ch) for a in (worker, gate)]
+
+    def test_every_fenced_example_is_valid_json(self):
+        import json
+        checked = 0
+        for prompt in self._prompts():
+            parts = prompt.split("```handoff")[1:]
+            for part in parts:
+                block = part.split("```")[0].strip()
+                if not block:
+                    continue
+                checked += 1
+                try:
+                    json.loads(block)
+                except ValueError as exc:
+                    self.fail(f"a prompt example does not parse: {exc}\n{block}")
+        self.assertGreater(checked, 2, "no examples were actually checked")

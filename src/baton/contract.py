@@ -52,9 +52,21 @@ def render_routing_contract(agent: AgentSpec, charter: Charter, *,
             "Judge the work against the acceptance criteria above — nothing else.",
             "",
             "```handoff",
+            # Every placeholder stays INSIDE quotes. The first version of this
+            # example wrote `"coverage": [<one path per criterion>]`, which is
+            # not valid JSON — and models copied it back verbatim, so the gate
+            # failed to route on 67% of dispatches with Claude and 75% with
+            # mistral-small. A worked example in a prompt is INSTRUCTION: if the
+            # example does not parse, neither will the answer.
             '{"decision": "RATIFY", "summary": "why every criterion is met",\n'
-            ' "coverage": [<one artifact path per acceptance criterion, IN ORDER>]}',
+            ' "coverage": ["<artifact path satisfying criterion 1>",\n'
+            '              "<artifact path satisfying criterion 2>"]}',
             "```",
+            "",
+            "`coverage` needs ONE entry per acceptance criterion above, in the "
+            "same order, each an artifact path that already exists. Repeat a "
+            "path if it satisfies more than one. You cannot ratify work you "
+            "cannot point at.",
             "",
             "or, to send the work back:",
             "",
@@ -80,8 +92,10 @@ def render_routing_contract(agent: AgentSpec, charter: Charter, *,
         ' "artifacts": [{"path": "<path or label for what you produced>",',
         '                "description": "one line",',
         '                "preview": "your own 2-3 line summary",',
-        '                "content": "the work product itself, if the reader has no',
-        '                            way to open the path"}]}',
+        # One line. The two-line version put a RAW NEWLINE inside a JSON string,
+        # so the example workers were shown had never been parseable — and the
+        # runtime then counted their copies of it as the model's failure.
+        '                "content": "the work product itself, when the reader cannot open the path"}]}',
         "```",
         "",
         "or, if you believe the brief is satisfied:",
