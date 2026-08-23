@@ -16,7 +16,7 @@ from baton.charter import Charter
 from baton.runtime import DispatchResult, Guards, run
 from baton.trace import MemoryTrace
 
-ART = ('"artifacts": [{"path": "out.md", "description": "d", "content": "c"}]')
+ART = ('"artifacts": [{"path": "out.md", "description": "d", "content": "The deliverable body, in full. The deliverable body, in full. The deliverable body, in full. The deliverable body, in full. The deliverable body, in full. "}]')
 
 
 def done(summary="done"):
@@ -29,7 +29,7 @@ def reject(to):
 
 
 def ratify():
-    return '```handoff\n{"decision": "RATIFY", "summary": "ok"}\n```'
+    return ('```handoff\n{"decision": "RATIFY", "summary": "ok", "coverage": ["out.md"]}\n```')
 
 
 def roster():

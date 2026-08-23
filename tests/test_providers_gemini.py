@@ -304,7 +304,7 @@ class EndToEndThroughTheRuntime(unittest.TestCase):
         # PROPOSE_DONE carries the work product: a ratify with no artifact
         # is not a delivery, and the runtime now says so.
         scripted = ['```handoff\n{"decision": "PROPOSE_DONE", "summary": "done", "artifacts": [{"path": "out/result.json", "description": "the deliverable"}]}\n```',
-                    '```handoff\n{"decision": "RATIFY", "summary": "verified"}\n```']
+                    '```handoff\n{"decision": "RATIFY", "summary": "verified", "coverage": ["out/result.json"]}\n```']
 
         class Sequence:
             def __init__(self):

@@ -195,7 +195,12 @@ class RatifyRequiresADeliverable(unittest.TestCase):
     def test_deleting_THIS_guard_alone_restores_the_bug(self):
         """The anti-vacuity discipline: if the suite still passes with the guard
         switched off, the guard was never what the test was testing."""
-        r = self._empty_ratify_run(require_artifacts=False)
+        # require_coverage and require_substance came later and would
+        # catch this same run for a DIFFERENT reason. Isolating one guard
+        # means switching off the others, or the test stops measuring it.
+        r = self._empty_ratify_run(require_artifacts=False,
+                                   require_coverage=False,
+                                   require_substance=False)
         self.assertEqual("ratified", r.terminal_reason,
                          "with the guard off the empty ratify must sail through "
                          "again — otherwise something else is catching this and "
@@ -217,6 +222,6 @@ class RatifyRequiresADeliverable(unittest.TestCase):
         art = ArtifactRef(path="workspace/spec.md", description="written early")
         d = ScriptedDispatch({"ceo": [prose_then(handoff("cto", artifacts=[art]))],
                               "cto": [propose_done_without_evidence()],
-                              "gate_agent": [ratify()]})
+                              "gate_agent": [ratify(coverage=["workspace/spec.md"] * 8)]})
         r = run(charter(), roster(), d)
         self.assertEqual("ratified", r.terminal_reason)

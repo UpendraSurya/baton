@@ -51,8 +51,10 @@ class ProposeDoneNeedsEvidence(unittest.TestCase):
         d = ScriptedDispatch({
             "writer": [propose_done_without_evidence(),          # no artifacts
                        block(decision="PROPOSE_DONE", summary="here it is",
-                             artifacts=[{"path": "draft.md", "content": "the copy"}])],
-            "gate": [ratify("read the draft, it is fine")]})
+                             artifacts=[{"path": "draft.md",
+                                         "content": "The launch copy, in full. " * 5}])],
+            "gate": [ratify("read the draft, it is fine",
+                            coverage=["draft.md"] * 8)]})
         agents = {"writer": WORKER, "gate": GATE_AGENT}
         r = run(CHARTER, agents, d)
         self.assertEqual(2, d.call_count("writer"), "no repair nudge was sent")

@@ -26,7 +26,8 @@ from baton.trace import MemoryTrace, TraceSink
 
 TERMINAL_REASONS: tuple[str, ...] = ("ratified", "budget_exhausted", "hops_exhausted", "stalled",
                     "dispatch_failure", "charter_violation", "reject_cap_reached",
-                    "ratified_without_deliverable")
+                    "ratified_without_deliverable",
+                    "ratified_without_coverage")
 
 # A run that reaches this has lost a stop rule. It is not a stop rule itself — it
 # is the alarm that says one is missing, and it raises rather than terminating so
@@ -77,6 +78,8 @@ class Guards:
     validate_target: bool = True
     render_legal_moves: bool = True
     require_artifacts: bool = True
+    require_coverage: bool = True
+    require_substance: bool = True
 
 
 @dataclass
@@ -145,6 +148,62 @@ def _finish(trace: TraceSink, st: _State, reason: str, baton: Baton,
     return RunResult(trace_id=trace.trace_id, terminal_reason=reason, hops=st.hop,
                      spend_usd=st.spend, gate_summary=gate_summary, note=note,
                      path=tuple(st.path), last_baton=baton, trace=trace)
+
+
+def _is_stub(a):
+    """An artifact whose CLAIM outweighs its CONTENT.
+
+    Self-calibrating on purpose: no magic byte count, just the description
+    being longer than the work it describes. Observed on ForgeLine —
+    `Dockerfile.stripe`, described as "Production-ready Dockerfile ... with
+    idempotency and signature verification", contained
+    "# Dockerfile.stripe content shown above" and nothing else.
+
+    An artifact with NO content is not a stub. path + description is the
+    legitimate "open it yourself" form for something the reader can fetch;
+    only content that under-delivers its own description counts.
+    """
+    size = a.content_chars or len((a.content or "").strip())
+    if not size:
+        return False           # a pure pointer is legitimate, not a stub
+    return size < max(80, len(a.description or ""))
+
+
+def _ratify_problem(decision, artifacts, charter, guards):
+    """Why this RATIFY must not stand — or None.
+
+    Existence was never the property that mattered. A gate asked "is this
+    good?" says yes; a gate asked "which file satisfies criterion 3?" has to
+    point at something, and the runtime can check whether it exists.
+    """
+    if guards.require_artifacts and not artifacts:
+        return ("ratified_without_deliverable",
+                "the gate ratified with no artifact to point at; "
+                "nothing was delivered")
+
+    if guards.require_substance and artifacts:
+        stubs = [a.path for a in artifacts if _is_stub(a)]
+        if len(stubs) * 2 > len(artifacts):
+            return ("ratified_without_deliverable",
+                    f"{len(stubs)} of {len(artifacts)} artifacts are stubs — "
+                    f"the description outweighs the content in "
+                    f"{', '.join(stubs[:4])}; a claim is not a deliverable")
+
+    if guards.require_coverage:
+        criteria = charter.acceptance_criteria
+        cover = decision.coverage
+        if len(cover) < len(criteria):
+            return ("ratified_without_coverage",
+                    f"the gate ratified {len(criteria)} acceptance criteria "
+                    f"while naming work for {len(cover)}; it must say which "
+                    "artifact satisfies which criterion")
+        paths = {a.path for a in artifacts}
+        missing = [c for c in cover[:len(criteria)] if c not in paths]
+        if missing:
+            return ("ratified_without_coverage",
+                    f"the gate cited artifacts that do not exist: "
+                    f"{', '.join(missing)}")
+    return None
 
 
 def _without_exhausted(gate, st, charter):
@@ -363,11 +422,11 @@ def run(charter: Charter, agents: Mapping[str, AgentSpec], dispatch: Dispatch, *
             # decision at all), and "produced nothing" is a real outcome the
             # bench must be able to see, not an error to retry away.
             ratified = _merge_artifacts(baton.artifacts, decision.artifacts)
-            if guards.require_artifacts and not ratified:
-                return _finish(trace, st, "ratified_without_deliverable", baton,
-                               gate_summary=decision.summary,
-                               note=("the gate ratified with no artifact to "
-                                     "point at; nothing was delivered"))
+            problem = _ratify_problem(decision, ratified, charter, guards)
+            if problem:
+                reason, note = problem
+                return _finish(trace, st, reason, baton,
+                               gate_summary=decision.summary, note=note)
             return _finish(trace, st, "ratified", baton,
                            gate_summary=decision.summary)
 

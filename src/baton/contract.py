@@ -52,7 +52,8 @@ def render_routing_contract(agent: AgentSpec, charter: Charter, *,
             "Judge the work against the acceptance criteria above — nothing else.",
             "",
             "```handoff",
-            '{"decision": "RATIFY", "summary": "why every criterion is met"}',
+            '{"decision": "RATIFY", "summary": "why every criterion is met",\n'
+            ' "coverage": [<one artifact path per acceptance criterion, IN ORDER>]}',
             "```",
             "",
             "or, to send the work back:",
@@ -192,6 +193,9 @@ def parse_decision(text: str) -> Decision:
                         goal=str(payload.get("goal", "")).strip(),
                         rationale=str(payload.get("rationale", "")).strip(),
                         summary=str(payload.get("summary", "")).strip(),
+                        coverage=tuple(
+                            str(c).strip() for c in (payload.get("coverage") or [])
+                            if str(c).strip()),
                         reason=str(payload.get("reason", "")).strip(),
                         artifacts=_artifacts(payload.get("artifacts")))
     raise ParseFailure(last_error)

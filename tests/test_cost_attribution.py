@@ -35,8 +35,8 @@ def charter():
 
 
 DONE = ('```handoff\n{"decision": "PROPOSE_DONE", "summary": "done",'
-        ' "artifacts": [{"path": "out.md", "description": "d", "content": "c"}]}\n```')
-RATIFY = '```handoff\n{"decision": "RATIFY", "summary": "ok"}\n```'
+        ' "artifacts": [{"path": "out.md", "description": "d", "content": "The deliverable body, in full. The deliverable body, in full. The deliverable body, in full. The deliverable body, in full. The deliverable body, in full. "}]}\n```')
+RATIFY = ('```handoff\n{"decision": "RATIFY", "summary": "ok", "coverage": ["out.md"]}\n```')
 
 
 class TheTraceNamesTheModel(unittest.TestCase):

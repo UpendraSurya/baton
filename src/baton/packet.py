@@ -39,8 +39,16 @@ class ArtifactRef:
     description: str = ""
     preview: str = ""
     content: str = ""          # the work product itself, when there is no shared disk
+    # How much work this artifact carried WHEN IT WAS PRODUCED. Set once and
+    # preserved through without_content(), because an artifact stops carrying
+    # its content the moment it becomes history — and a gate judging the whole
+    # set at the end would otherwise see only empty pointers and be unable to
+    # tell a 6KB webhook from "# content shown above".
+    content_chars: int = 0
 
     def __post_init__(self) -> None:
+        if not self.content_chars and self.content:
+            object.__setattr__(self, "content_chars", len(self.content.strip()))
         if len(self.content) > MAX_CONTENT_CHARS:
             object.__setattr__(
                 self, "content",
@@ -49,11 +57,13 @@ class ArtifactRef:
     def without_content(self) -> ArtifactRef:
         """The same reference, reduced to a pointer. Used when an artifact stops
         being this hop's deliverable and becomes history."""
-        return ArtifactRef(self.path, self.description, self.preview)
+        return ArtifactRef(self.path, self.description, self.preview,
+                           content_chars=self.content_chars)
 
     def to_dict(self) -> dict:
         return {"path": self.path, "description": self.description,
-                "preview": self.preview, "content": self.content}
+                "preview": self.preview, "content": self.content,
+                "content_chars": self.content_chars}
 
     def render(self) -> str:
         head = f"- `{self.path}`"
@@ -120,9 +130,13 @@ class Decision:
     summary: str = ""
     reason: str = ""
     artifacts: tuple[ArtifactRef, ...] = ()
+    # RATIFY only: one artifact path per acceptance criterion, in order. The
+    # gate has to say WHICH work satisfies WHICH requirement, because "looks
+    # good to me" is the failure mode a gate exists to prevent.
+    coverage: tuple[str, ...] = ()
 
     def to_dict(self) -> dict:
         return {"decision": self.kind.value, "to": self.to, "goal": self.goal,
                 "rationale": self.rationale, "summary": self.summary,
-                "reason": self.reason,
+                "reason": self.reason, "coverage": list(self.coverage),
                 "artifacts": [a.to_dict() for a in self.artifacts]}

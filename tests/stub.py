@@ -42,7 +42,12 @@ def handoff(to, goal="continue the work", rationale="next logical step",
 DEFAULT_EVIDENCE = [{"path": "workspace/deliverable.md",
                      "description": "the work product",
                      "preview": "what was produced",
-                     "content": "The deliverable, in full."}]
+                     # Long enough to be real work. Under the substance guard an
+                     # artifact whose DESCRIPTION outweighs its CONTENT is a
+                     # stub, and a one-line fixture would make every test in
+                     # this suite look like the ForgeLine Dockerfiles.
+                     "content": ("The deliverable, in full.\n\n"
+                                 + "Section body line.\n" * 8)}]
 
 
 def propose_done(summary="every acceptance criterion is met", artifacts=None):
@@ -57,8 +62,20 @@ def propose_done_without_evidence(summary="trust me, it is finished"):
     return _block({"decision": "PROPOSE_DONE", "summary": summary})
 
 
-def ratify(summary="checked every criterion; ships"):
-    return _block({"decision": "RATIFY", "summary": summary})
+DELIVERABLE = "workspace/deliverable.md"
+
+
+def ratify(summary="checked every criterion; ships", coverage=None):
+    """A gate that names the work satisfying each criterion.
+
+    `coverage` defaults to a generous repetition of the deliverable path used
+    across these fixtures, because most tests are about something else and
+    should not have to restate the ratify contract. Tests that care about
+    coverage pass it explicitly — see tests/test_ratify_is_checked.py.
+    """
+    body = {"decision": "RATIFY", "summary": summary}
+    body["coverage"] = list(coverage) if coverage is not None else [DELIVERABLE] * 8
+    return _block(body)
 
 
 def reject(to, reason="criterion 1 is not evidenced"):
