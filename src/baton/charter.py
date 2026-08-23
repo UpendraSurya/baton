@@ -30,6 +30,12 @@ class Charter:
     acceptance_criteria: tuple[str, ...]
     budget_ceiling_usd: float = 5.0
     max_hops: int = 12
+    # Killer 5: a run that never comes back. Two bounds, because they catch
+    # different things — the deadline covers slow accumulation across hops, and
+    # max_dispatch_seconds covers ONE hop that never returns, which a deadline
+    # checked between hops can never notice.
+    max_wall_seconds: float = 3600.0
+    max_dispatch_seconds: float = 300.0
     security_tier: str = "M"
     max_rejects_per_agent: int = 2
     pressure_threshold: float = 0.8
@@ -54,6 +60,10 @@ class Charter:
             raise CharterInvalid("budget_ceiling_usd must be > 0")
         if self.max_hops < 1:
             raise CharterInvalid("max_hops must be >= 1")
+        if self.max_wall_seconds <= 0:
+            raise CharterInvalid("max_wall_seconds must be > 0")
+        if self.max_dispatch_seconds <= 0:
+            raise CharterInvalid("max_dispatch_seconds must be > 0")
         if self.security_tier not in TIERS:
             raise CharterInvalid(f"security_tier must be one of {TIERS}")
         if self.max_rejects_per_agent < 1:
@@ -74,6 +84,8 @@ class Charter:
                 "agent_pool": sorted(self.agent_pool),
                 "acceptance_criteria": list(self.acceptance_criteria),
                 "budget_ceiling_usd": self.budget_ceiling_usd,
-                "max_hops": self.max_hops, "security_tier": self.security_tier,
+                "max_hops": self.max_hops,
+                "max_wall_seconds": self.max_wall_seconds,
+                "max_dispatch_seconds": self.max_dispatch_seconds, "security_tier": self.security_tier,
                 "max_rejects_per_agent": self.max_rejects_per_agent,
                 "pressure_threshold": self.pressure_threshold}

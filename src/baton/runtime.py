@@ -11,6 +11,9 @@ and it is why kernel/ imports nothing.
 """
 from __future__ import annotations
 
+import threading
+import time
+
 import uuid
 from dataclasses import dataclass, field, replace
 from typing import Callable, Mapping, Optional, Protocol
@@ -27,7 +30,7 @@ from baton.trace import MemoryTrace, TraceSink
 TERMINAL_REASONS: tuple[str, ...] = ("ratified", "budget_exhausted", "hops_exhausted", "stalled",
                     "dispatch_failure", "charter_violation", "reject_cap_reached",
                     "ratified_without_deliverable",
-                    "ratified_without_coverage")
+                    "ratified_without_coverage", "time_exhausted")
 
 # A run that reaches this has lost a stop rule. It is not a stop rule itself — it
 # is the alarm that says one is missing, and it raises rather than terminating so
@@ -80,6 +83,7 @@ class Guards:
     require_artifacts: bool = True
     require_coverage: bool = True
     require_substance: bool = True
+    wall_clock: bool = True
 
 
 @dataclass
@@ -108,6 +112,8 @@ class _State:
     pairs: list[tuple[str, str]] = field(default_factory=list)
     rejects: dict[str, int] = field(default_factory=dict)
     last_proposer: str = ""
+    # monotonic, so a clock change mid-run cannot extend or collapse a deadline
+    started_at: float = field(default_factory=time.monotonic)
 
 
 # --- helpers -----------------------------------------------------------------
@@ -217,6 +223,40 @@ def _ratify_problem(decision, artifacts, charter, guards):
     return None
 
 
+def _dispatch_bounded(dispatch, agent, baton, prompt, charter, guards):
+    """Call the dispatch, but never wait forever for it.
+
+    A provider's own timeout cannot be trusted to be the stop rule: the run this
+    was written for set `urlopen(timeout=30)` and still sat blocked for 25
+    minutes. A stop rule that depends on the thing being stopped is not one.
+
+    The call runs on a DAEMON thread so a hung provider cannot hold the process
+    open after the run gives up on it. The thread is genuinely abandoned, not
+    cancelled — Python cannot interrupt a blocked socket read — so it may still
+    be holding a connection when we return. That is the honest trade: a leaked
+    thread the OS will reap at exit, against a run that never ends.
+    """
+    if not guards.wall_clock:
+        return dispatch(agent, baton, prompt), False
+
+    box = {}
+
+    def call():
+        try:
+            box["res"] = dispatch(agent, baton, prompt)
+        except BaseException as exc:                  # noqa: BLE001 — re-raised below
+            box["exc"] = exc
+
+    t = threading.Thread(target=call, daemon=True)
+    t.start()
+    t.join(charter.max_dispatch_seconds)
+    if t.is_alive():
+        return None, True
+    if "exc" in box:
+        raise box["exc"]
+    return box["res"], False
+
+
 def _without_exhausted(gate, st, charter):
     """The gate, minus every agent it has already rejected to its cap.
 
@@ -254,7 +294,13 @@ def _hop(agent, baton, charter, st, dispatch, guards, trace):
         prompt = render_prompt(agent, baton, charter, pressure=st.pressure,
                                include_legal_moves=guards.render_legal_moves,
                                nudge=nudge)
-        res = dispatch(agent, baton, prompt)
+        res, timed_out = _dispatch_bounded(dispatch, agent, baton, prompt,
+                                           charter, guards)
+        if timed_out:
+            trace.append({"event": "dispatch_timeout", "hop": st.hop,
+                          "agent": agent.name, "attempt": attempt,
+                          "limit_s": charter.max_dispatch_seconds})
+            return None, "dispatch_timeout"
         st.spend += res.cost_usd
         st.in_tokens += res.in_tokens
         st.out_tokens += res.out_tokens
@@ -364,6 +410,17 @@ def run(charter: Charter, agents: Mapping[str, AgentSpec], dispatch: Dispatch, *
                 "This run is out of hops. Assess what exists against the "
                 "acceptance criteria and give a verdict.")
 
+        # Killer 5: a run that never comes back. Checked here as well as per
+        # dispatch, because many merely-slow hops add up to the same outcome.
+        if guards.wall_clock:
+            ran = time.monotonic() - st.started_at
+            if ran >= charter.max_wall_seconds:
+                return _finish(trace, st, "time_exhausted", baton,
+                               # :g not :.1f — a 0.15s deadline printed as
+                               # "0.1s" is a wrong number in an error message
+                               note=(f"ran {ran:.1f}s, past the "
+                                     f"{charter.max_wall_seconds:g}s deadline"))
+
         # Killer 2: budget spiral. Hard halt — no forced gate call, because a
         # call made past the ceiling spends money the charter forbade.
         if guards.budget and st.spend >= charter.budget_ceiling_usd:
@@ -386,6 +443,10 @@ def run(charter: Charter, agents: Mapping[str, AgentSpec], dispatch: Dispatch, *
                           "spend_usd": round(st.spend, 6),
                           "ceiling_usd": charter.budget_ceiling_usd})
 
+        if failure == "dispatch_timeout":
+            return _finish(trace, st, "dispatch_failure", baton,
+                           note=(f"{agent.name} did not answer within "
+                                 f"{charter.max_dispatch_seconds}s — abandoned"))
         if failure == "dispatch_failure":
             return _finish(trace, st, "dispatch_failure", baton,
                            note=f"{agent.name} could not be dispatched")
