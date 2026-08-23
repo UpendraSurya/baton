@@ -12,7 +12,7 @@ and it is why kernel/ imports nothing.
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Callable, Mapping, Optional, Protocol
 
 from baton.agent import AgentSpec
@@ -147,6 +147,30 @@ def _finish(trace: TraceSink, st: _State, reason: str, baton: Baton,
                      path=tuple(st.path), last_baton=baton, trace=trace)
 
 
+def _without_exhausted(gate, st, charter):
+    """The gate, minus every agent it has already rejected to its cap.
+
+    The cap used to TERMINATE the run. That enforced nothing about the gate's
+    choice — it just killed a project because one agent had been sent back
+    twice, while every other staffed agent sat untouched. Observed on the
+    ForgeLine brief: 32 agents staffed, 8 ever dispatched, dead at the cap.
+
+    Narrowing the whitelist is the harness fix. `legal_moves_for` is the single
+    place both the rendered prompt and the post-parse validation read, so the
+    gate is never OFFERED an exhausted agent and cannot name one. Re-prompting
+    would have fixed one run; this fixes the class.
+
+    If everyone is exhausted the gate keeps an empty target list, which leaves
+    it exactly one legal act — ratify — and the cap still terminates a gate
+    that refuses. Demoted to a backstop, not deleted.
+    """
+    exhausted = {a for a, n in st.rejects.items()
+                 if n >= charter.max_rejects_per_agent}
+    if not exhausted:
+        return gate
+    return replace(gate, can_hand_to=frozenset(gate.can_hand_to) - exhausted)
+
+
 def _hop(agent, baton, charter, st, dispatch, guards, trace):
     """One agent execution, with the repair ladder.
 
@@ -278,6 +302,8 @@ def run(charter: Charter, agents: Mapping[str, AgentSpec], dispatch: Dispatch, *
                                  f"${charter.budget_ceiling_usd:.2f} ceiling"))
 
         agent = agents[baton.to_agent]
+        if agent.is_gate and guards.reject_cap:
+            agent = _without_exhausted(agent, st, charter)
         st.hop += 1
         st.path.append(agent.name)
 
@@ -298,6 +324,19 @@ def run(charter: Charter, agents: Mapping[str, AgentSpec], dispatch: Dispatch, *
             # Two bad attempts. The gate judges what exists rather than the
             # runtime guessing a third time.
             if agent.is_gate:
+                # Distinguish "the gate wrote nonsense" from "the gate kept
+                # naming an agent it had already exhausted". Both arrive here as
+                # an unroutable decision, but only the second has a cause worth
+                # reporting, and calling it charter_violation hides the reason
+                # the run actually ended.
+                spent = sorted(a for a, n in st.rejects.items()
+                               if n >= charter.max_rejects_per_agent)
+                if guards.reject_cap and spent:
+                    return _finish(trace, st, "reject_cap_reached", baton,
+                                   note=(f"the gate rejected {', '.join(spent)} "
+                                         f"to the cap of "
+                                         f"{charter.max_rejects_per_agent} and "
+                                         "would not route anywhere else"))
                 return _finish(trace, st, "charter_violation", baton,
                                note="the gate's own output could not be routed")
             baton = _gate_baton(
@@ -337,6 +376,8 @@ def run(charter: Charter, agents: Mapping[str, AgentSpec], dispatch: Dispatch, *
             st.rejects[proposer] = st.rejects.get(proposer, 0) + 1
             # An uncapped REJECT is a second infinite loop hiding behind the
             # first. Past the cap the gate must ratify or route elsewhere.
+            # Reaching here past the cap means the gate had no un-exhausted
+            # target left and still refused to ratify.
             if (guards.reject_cap
                     and decision.to == proposer
                     and st.rejects[proposer] > charter.max_rejects_per_agent):
