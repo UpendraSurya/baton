@@ -3,7 +3,7 @@
 All notable changes to `baton-kernel`. Format follows [Keep a Changelog];
 this project uses [Semantic Versioning].
 
-## [0.1.0] — 2026-08-22
+## [0.1.0] — 2026-08-23
 
 First release. The runtime is the product; the routing thesis it was built to
 test came back **inconclusive**, and that result ships with it rather than
@@ -13,8 +13,12 @@ being quietly left out — see "What is proven, and what is not" in the README.
 - **The kernel.** `run(charter, agents, dispatch)` — legal-move enforcement, a
   budget ceiling, a hop cap, a ping-pong detector, and a gate agent that is the
   only role permitted to end a run.
-- **Eight terminal reasons, exhaustively.** No path out of the loop returns
-  "it just stopped". All eight observed across 4,000 adversarial runs.
+- **Ten terminal reasons, exhaustively.** No path out of the loop returns
+  "it just stopped". A 4,000-run adversarial suite has never produced a run that
+  ended any other way; eight of the ten arise spontaneously in it, and the two
+  added last — `ratified_without_coverage` and `time_exhausted` — are covered by
+  targeted tests (`test_ratify_is_checked.py`, `test_runtime_wall_clock.py`)
+  rather than by the fuzzer.
 - **`baton.plan`** — pre-flight hop and spend estimate before a run costs money.
 - **Providers, zero-dependency.** `gemini` (Google's own `:generateContent`
   shape) and `openai_compat` + `mistral` (the `/v1/chat/completions` shape that
@@ -36,6 +40,17 @@ being quietly left out — see "What is proven, and what is not" in the README.
   checked against the artifact set mechanically rather than asked about in a
   prompt. Without this guard, all 90 benchmark runs scored `ratified` and the
   arms were indistinguishable at 100% each.
+- **A ratify must say WHICH artifact satisfies WHICH criterion.** Existence was
+  never the property that mattered: a gate was observed ratifying three planning
+  memos against criteria naming a deployed app, an ETL pipeline and Stripe
+  billing, and separately ratifying a `Dockerfile` whose entire content was
+  `# Dockerfile.stripe content shown above`. `require_coverage` makes the claim
+  falsifiable by a machine; `require_substance` refuses an artifact set whose
+  descriptions outweigh its contents. One artifact cannot answer three
+  independent criteria.
+- **A run that never comes back is a stop reason, not a hang.** `max_wall_seconds`
+  bounds the run and `max_dispatch_seconds` bounds a single hop, because a
+  socket timeout bounds one call and a run multiplies it by hops.
 - **`cost_from_tokens` raises `UnmeteredModel`** for a model with no rate card.
   It never returns 0.0 — a free-looking model never trips a budget ceiling.
 - **Budget exhaustion halts flat, with no final gate call.** The hop cap does

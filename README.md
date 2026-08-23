@@ -29,9 +29,12 @@ three arms and carry no information at all. So this library does not claim that
 agents choosing their own successor beats a graph you drew yourself — its own
 benchmark declined to show that.
 
-What *is* proven is the **runtime**: every run ends for exactly one of eight
-declared reasons, demonstrated over 4,000 adversarial runs with all eight
-observed. If you want agents to route themselves, this is the envelope that
+What *is* proven is the **runtime**: every run ends for exactly one of ten
+declared reasons. A 4,000-run adversarial suite drives hostile agents at it and
+has never produced a run that ended any other way; eight of the ten arise
+spontaneously in that suite, and the two newest —
+`ratified_without_coverage` and `time_exhausted` — are covered by targeted tests
+rather than by the fuzzer. If you want agents to route themselves, this is the envelope that
 makes it safe to try. The write-up, including why the measurement is hard, is
 in [docs/measuring-dynamic-routing.md](docs/measuring-dynamic-routing.md).
 
@@ -94,7 +97,7 @@ permitted to end a run.
 
 ## The stop rules
 
-Every run ends with exactly one of eight terminal reasons. There is no path out
+Every run ends with exactly one of ten terminal reasons. There is no path out
 of the loop that returns "it just stopped".
 
 | Killer | Defence | Terminal reason |
@@ -106,6 +109,8 @@ of the loop that returns "it just stopped".
 | unroutable output | 2 attempts, then the gate judges | `charter_violation` |
 | transport failure | no retry — a timeout is not a parse error | `dispatch_failure` |
 | empty delivery | the ratified artifact set is checked, not asked about | `ratified_without_deliverable` |
+| unevidenced delivery | RATIFY must name which artifact satisfies which criterion | `ratified_without_coverage` |
+| a run that never comes back | `max_wall_seconds`, and `max_dispatch_seconds` for one hop that hangs | `time_exhausted` |
 | — | the gate ratified, with something to point at | `ratified` |
 
 Budget halts *without* a final gate call, unlike hops: a call made past the
