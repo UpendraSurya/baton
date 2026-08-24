@@ -130,6 +130,10 @@ class _State:
     pairs: list[tuple[str, str]] = field(default_factory=list)
     rejects: dict[str, int] = field(default_factory=dict)
     last_proposer: str = ""
+    # Why the last dispatch failed, verbatim. Without it the terminal note can
+    # only say "could not be dispatched", which is the same sentence for a
+    # provider 500, a bad API key and a KeyError in the caller's own adapter.
+    dispatch_error: str = ""
     # monotonic, so a clock change mid-run cannot extend or collapse a deadline
     started_at: float = field(default_factory=time.monotonic)
 
@@ -268,7 +272,7 @@ def _dispatch_bounded(dispatch, agent, baton, prompt, charter, guards):
     thread the OS will reap at exit, against a run that never ends.
     """
     if not guards.wall_clock:
-        return dispatch(agent, baton, prompt), False
+        return _caught(dispatch, agent, baton, prompt), False
 
     box = {}
 
@@ -284,8 +288,35 @@ def _dispatch_bounded(dispatch, agent, baton, prompt, charter, guards):
     if t.is_alive():
         return None, True
     if "exc" in box:
-        raise box["exc"]
+        exc = box["exc"]
+        if isinstance(exc, Exception):
+            return _as_failure(exc), False
+        raise exc
     return box["res"], False
+
+
+def _as_failure(exc: Exception) -> DispatchResult:
+    """An exception out of a dispatch is a transport failure, not a crash.
+
+    `Dispatch`'s docstring invites "just pass a plain function with this
+    signature", so the callable is USER code and will raise user exceptions —
+    an adapter's KeyError, a vendor SDK's own type, an unexpected schema. Those
+    used to propagate out of run(), which broke the one guarantee the whole
+    library rests on: no RunResult, no terminal reason, no run_end record. A
+    run that dies is not a run that ended.
+
+    BaseException (KeyboardInterrupt, SystemExit) is deliberately NOT caught.
+    An operator pressing ctrl-C is not a transport failure, and a runtime that
+    eats it is worse than one that stops.
+    """
+    return DispatchResult(error=f"{type(exc).__name__}: {exc}")
+
+
+def _caught(dispatch, agent, baton, prompt) -> DispatchResult:
+    try:
+        return dispatch(agent, baton, prompt)
+    except Exception as exc:                          # noqa: BLE001 — see _as_failure
+        return _as_failure(exc)
 
 
 def _without_exhausted(gate, st, charter):
@@ -341,6 +372,7 @@ def _hop(agent, baton, charter, st, dispatch, guards, trace):
                       "model_id": res.model_id,
                       "error": res.error, "output_chars": len(res.text or "")})
         if res.error:
+            st.dispatch_error = res.error
             return None, "dispatch_failure"
         try:
             decision = parse_decision(res.text)
@@ -490,8 +522,9 @@ def run(charter: Charter, agents: Mapping[str, AgentSpec], dispatch: Dispatch, *
                            note=(f"{agent.name} did not answer within "
                                  f"{charter.max_dispatch_seconds}s — abandoned"))
         if failure == "dispatch_failure":
+            detail = f": {st.dispatch_error}" if st.dispatch_error else ""
             return _finish(trace, st, "dispatch_failure", baton,
-                           note=f"{agent.name} could not be dispatched")
+                           note=f"{agent.name} could not be dispatched{detail}")
 
         if failure:
             # Two bad attempts. The gate judges what exists rather than the
