@@ -107,6 +107,20 @@ print(result.terminal_reason, result.path, result.spend_usd)
 result.coverage     # ('draft.md', 'draft.md') — one artifact per criterion, in order
 result.artifacts    # the ArtifactRefs the gate checked that coverage against
                     # both are empty for every terminal reason except 'ratified'
+```
+
+`coverage` is **positional**: entry *i* answers criterion *i*. A gate that cannot
+answer one of them writes `null` (or `""`) in that slot rather than skipping it —
+skipping shifts every later entry up by one, and the array goes on looking
+plausible while citing the wrong artifact for everything past the gap. Either way
+the run is refused, but only the aligned form can say *which* criterion is
+unanswered, and that is usually the thing you needed:
+
+```
+ratified_without_coverage: the gate ratified 3 acceptance criteria while naming
+work for 2. Nothing is cited for: 'R-002 a deployment file'
+```
+```python
 
 # The hop-by-hop record. `records()` is a METHOD, not a property:
 for record in result.trace.records():

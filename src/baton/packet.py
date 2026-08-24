@@ -45,6 +45,12 @@ class ArtifactRef:
     # set at the end would otherwise see only empty pointers and be unable to
     # tell a 6KB webhook from "# content shown above".
     content_chars: int = 0
+    # Whether the content was cut to fit MAX_CONTENT_CHARS. The cut is correct —
+    # this packet is re-sent every hop — but a truncated patch or config is not a
+    # smaller one, it is a corrupt one, and a consumer that cannot tell reads the
+    # `git apply` failure as an agent that cannot write a diff. Reported from
+    # outside by migration-stress.
+    truncated: bool = False
 
     def __post_init__(self) -> None:
         if not self.content_chars and self.content:
@@ -53,17 +59,23 @@ class ArtifactRef:
             object.__setattr__(
                 self, "content",
                 self.content[:MAX_CONTENT_CHARS] + "\n… [truncated]")
+            object.__setattr__(self, "truncated", True)
 
     def without_content(self) -> ArtifactRef:
         """The same reference, reduced to a pointer. Used when an artifact stops
-        being this hop's deliverable and becomes history."""
+        being this hop's deliverable and becomes history.
+
+        `truncated` is carried across: losing the content must not also lose the
+        fact that what it carried was already incomplete."""
         return ArtifactRef(self.path, self.description, self.preview,
-                           content_chars=self.content_chars)
+                           content_chars=self.content_chars,
+                           truncated=self.truncated)
 
     def to_dict(self) -> dict:
         return {"path": self.path, "description": self.description,
                 "preview": self.preview, "content": self.content,
-                "content_chars": self.content_chars}
+                "content_chars": self.content_chars,
+                "truncated": self.truncated}
 
     def render(self) -> str:
         head = f"- `{self.path}`"

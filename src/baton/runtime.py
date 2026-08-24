@@ -83,6 +83,13 @@ class Guards:
     require_artifacts: bool = True
     require_coverage: bool = True
     require_substance: bool = True
+    # The 'one file cannot answer every independent requirement' rule.
+    # It is a heuristic about gates that GUESS, and it is a false negative
+    # on a gate that MEASURED — one that ran the acceptance criteria and
+    # reported what passed. Separate from require_coverage so a measuring
+    # gate can drop it without also dropping the checks that are still
+    # true. Reported from outside by migration-stress.
+    require_independent_work: bool = True
     wall_clock: bool = True
     preflight: bool = True
 
@@ -212,17 +219,21 @@ def _ratify_problem(decision, artifacts, charter, guards):
     if guards.require_coverage:
         criteria = charter.acceptance_criteria
         cover = decision.coverage
-        if len(cover) < len(criteria):
-            # Coverage is positional, so the criteria with nothing behind them
-            # are exactly the ones past the end. Naming them saves every
-            # consumer from re-deriving it — reported from outside.
-            missing = list(criteria[len(cover):])
-            shown = "; ".join(f"{c!r}" for c in missing[:3])
-            more = f" (+{len(missing) - 3} more)" if len(missing) > 3 else ""
+        # Two ways for a criterion to have nothing behind it, and they mean the
+        # same thing: a blank entry in the array, or no entry at all because the
+        # array stopped short. Naming WHICH criterion is the whole diagnosis —
+        # a short array alone can only say "the tail", and if the gap was in the
+        # middle that answer is wrong. Both consumers of 0.1.0 had to invent a
+        # sentinel string to get this back.
+        unanswered = [c for i, c in enumerate(criteria)
+                      if i >= len(cover) or not cover[i]]
+        if unanswered:
+            shown = "; ".join(f"{c!r}" for c in unanswered[:3])
+            more = f" (+{len(unanswered) - 3} more)" if len(unanswered) > 3 else ""
             return ("ratified_without_coverage",
                     f"the gate ratified {len(criteria)} acceptance criteria "
-                    f"while naming work for {len(cover)}. Nothing is cited for: "
-                    f"{shown}{more}")
+                    f"while naming work for {len(criteria) - len(unanswered)}. "
+                    f"Nothing is cited for: {shown}{more}")
         paths = {a.path for a in artifacts}
         missing = [c for c in cover[:len(criteria)] if c not in paths]
         if missing:
@@ -235,7 +246,7 @@ def _ratify_problem(decision, artifacts, charter, guards):
         # was cited for a web app, a 3D viewer, an ETL pipeline, an ML model,
         # billing and GDPR alike.
         cited = set(cover[:len(criteria)])
-        if len(criteria) >= 3 and len(cited) == 1:
+        if guards.require_independent_work and len(criteria) >= 3 and len(cited) == 1:
             return ("ratified_without_coverage",
                     f"the gate cited one artifact ({cited.pop()}) for all "
                     f"{len(criteria)} criteria; independent requirements need "

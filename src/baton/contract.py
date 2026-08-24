@@ -68,6 +68,13 @@ def render_routing_contract(agent: AgentSpec, charter: Charter, *,
             "path if it satisfies more than one. You cannot ratify work you "
             "cannot point at.",
             "",
+            # Without this line the only way to express a gap is a short array,
+            # which loses WHICH criterion is unanswered the moment the gap is
+            # anywhere but the end.
+            "If nothing satisfies one of them, put `null` in that position and "
+            "keep the rest in place. Do NOT shorten the list or shift entries "
+            "up — position is how a criterion is identified.",
+            "",
             "or, to send the work back:",
             "",
             "```handoff",
@@ -207,9 +214,14 @@ def parse_decision(text: str) -> Decision:
                         goal=str(payload.get("goal", "")).strip(),
                         rationale=str(payload.get("rationale", "")).strip(),
                         summary=str(payload.get("summary", "")).strip(),
+                        # Blank entries are KEPT. Coverage is positional, so
+                        # dropping a hole shifts every later entry up by one and
+                        # the array goes on looking plausible while citing the
+                        # wrong artifact for every criterion past the gap. `null`
+                        # and "" both mean "nothing answers this one".
                         coverage=tuple(
-                            str(c).strip() for c in (payload.get("coverage") or [])
-                            if str(c).strip()),
+                            "" if c is None else str(c).strip()
+                            for c in (payload.get("coverage") or [])),
                         reason=str(payload.get("reason", "")).strip(),
                         artifacts=_artifacts(payload.get("artifacts")))
     raise ParseFailure(last_error)
