@@ -33,15 +33,20 @@ no code path that returns "it just stopped".
 Zero dependencies, and it stays that way: providers talk HTTP through urllib and
 the test suite fails the build if anything imports a vendor SDK.
 """
-from baton.agent import GATE, WORKER, AgentSpec
+from baton.agent import GATE, WORKER, AgentSpec, gate, worker
 from baton.charter import Charter
+from baton.contract import (parse_decision, render_prompt,
+                            render_routing_contract, repair_nudge,
+                            validate_decision)
 from baton.errors import (BatonError, CharterInvalid, IllegalTarget,
                           ParseFailure, RoleViolation, TraceCorrupt)
 from baton import plan, reputation
 from baton.packet import ArtifactRef, Baton, Decision, Kind
-from baton.runtime import (TERMINAL_REASONS, DispatchResult, Guards, RunResult,
-                           run)
-from baton.trace import MemoryTrace, Trace
+from baton.plan import Estimate, estimate, reachable_from
+from baton.reputation import AgentRecord, Reputation, from_tallies, from_traces
+from baton.runtime import (TERMINAL_REASONS, Dispatch, DispatchResult, Guards,
+                           RunResult, run)
+from baton.trace import MemoryTrace, Trace, TraceSink
 
 __version__ = "0.1.0"
 
@@ -50,12 +55,25 @@ __all__ = [
     "AgentSpec", "Baton", "Charter", "Trace", "MemoryTrace",
     # running one
     "run", "RunResult", "DispatchResult", "Guards", "TERMINAL_REASONS",
+    # the seam between baton and any model, framework or remote service.
+    # Exported because two consumer projects each had to annotate their dispatch
+    # `Callable` or `object` while naming `Dispatch` in the docstring beside it.
+    "Dispatch",
     # the packet's parts
     "ArtifactRef", "Decision", "Kind", "GATE", "WORKER",
+    # building an agent without spelling out role=
+    "worker", "gate",
+    # the wire format, both directions. `parse_decision` reads what a model
+    # emitted; `Decision.render()` writes it. Anyone building a deterministic
+    # agent — a gate that runs tests rather than asking a model — needs both.
+    "render_prompt", "render_routing_contract", "parse_decision",
+    "validate_decision", "repair_nudge",
+    # the extension point for keeping a run's record somewhere of your choosing
+    "TraceSink",
     # pre-flight
-    "plan",
+    "plan", "estimate", "reachable_from", "Estimate",
     # evidence about the agents themselves
-    "reputation",
+    "reputation", "Reputation", "AgentRecord", "from_traces", "from_tallies",
     # failures
     "BatonError", "CharterInvalid", "IllegalTarget", "ParseFailure",
     "RoleViolation", "TraceCorrupt",

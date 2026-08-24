@@ -18,6 +18,8 @@ which bounds per-hop cost by one deliverable instead of by the whole history.
 """
 from __future__ import annotations
 
+import json
+
 from dataclasses import dataclass
 from enum import Enum
 
@@ -152,3 +154,22 @@ class Decision:
                 "rationale": self.rationale, "summary": self.summary,
                 "reason": self.reason, "coverage": list(self.coverage),
                 "artifacts": [a.to_dict() for a in self.artifacts]}
+
+    def render(self, *, preamble: str = "") -> str:
+        """This decision as the text an agent would emit — the inverse of
+        `parse_decision`, and round-trip safe with it.
+
+        baton could read its own wire format and not write it, so everyone
+        writing a deterministic agent — a gate that runs tests instead of asking
+        a model, a scripted fixture, a replay harness — hand-rolled the fence
+        and the JSON. Fifteen files in this repo and its two consumer projects
+        did exactly that, which is fifteen independent chances to get the format
+        wrong and no single place to fix it.
+
+        Empty fields are omitted rather than sent as "": a HANDOFF carrying
+        `"coverage": []` invites a reader to think coverage was considered.
+        """
+        body = {k: v for k, v in self.to_dict().items() if v not in ("", [], None)}
+        body["decision"] = self.kind.value          # never dropped, even if falsy
+        head = f"{preamble.strip()}\n\n" if preamble.strip() else ""
+        return head + "```handoff\n" + json.dumps(body, ensure_ascii=False) + "\n```"

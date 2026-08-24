@@ -15,8 +15,8 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "src"))
 
-from baton import GATE, AgentSpec, Charter, DispatchResult, run   # noqa: E402
-from baton.trace import MemoryTrace                               # noqa: E402
+from baton import (GATE, AgentSpec, ArtifactRef, Charter, Decision,  # noqa: E402
+                   DispatchResult, Kind, MemoryTrace, run)
 
 # --- the pool ----------------------------------------------------------------
 # `hand_to` is a WHITELIST, not an edge list: it says who this agent is allowed
@@ -81,27 +81,26 @@ def offline(ticket: str):
     keyword = ("refunds" if "charged" in ticket else
                "engineering" if "crash" in ticket else "docs")
 
-    def block(payload):
-        return "```handoff\n" + json.dumps(payload) + "\n```"
-
     def dispatch(agent, baton, prompt):
         if agent.name == "intake":
-            body = {"decision": "HANDOFF", "to": keyword,
-                    "goal": "resolve this ticket end to end",
-                    "rationale": f"the ticket is a {keyword} matter"}
+            d = Decision(kind=Kind.HANDOFF, to=keyword,
+                         goal="resolve this ticket end to end",
+                         rationale=f"the ticket is a {keyword} matter")
         elif agent.name == "gate":
-            body = {"decision": "RATIFY", "summary": "both criteria evidenced",
-                    "coverage": ["reply.md", "internal_note.md"]}
+            d = Decision(kind=Kind.RATIFY, summary="both criteria evidenced",
+                         coverage=("reply.md", "internal_note.md"))
         else:
-            body = {"decision": "PROPOSE_DONE",
-                    "summary": f"{agent.name} resolved the ticket",
-                    "artifacts": [
-                        {"path": "reply.md", "description": "customer reply",
-                         "content": f"Hello,\n\n{agent.name} has looked at this. " * 12},
-                        {"path": "internal_note.md", "description": "internal action",
-                         "content": f"Logged by {agent.name}; follow-up owned. " * 12}]}
-        return DispatchResult(text=block(body), cost_usd=0.0,
-                              in_tokens=1, out_tokens=1)
+            d = Decision(kind=Kind.PROPOSE_DONE,
+                         summary=f"{agent.name} resolved the ticket",
+                         artifacts=(
+                             ArtifactRef("reply.md", "customer reply",
+                                         content=f"Hello,\n\n{agent.name} has looked at this. " * 12),
+                             ArtifactRef("internal_note.md", "internal action",
+                                         content=f"Logged by {agent.name}; follow-up owned. " * 12)))
+        # `render()` writes the fence baton's own parser reads. No consumer
+        # should be hand-assembling this JSON.
+        return DispatchResult(text=d.render(preamble="Working the ticket."),
+                              cost_usd=0.0, in_tokens=1, out_tokens=1)
 
     return dispatch
 
