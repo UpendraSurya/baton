@@ -34,6 +34,13 @@ MAX_ATTEMPTS: int = 3
 BACKOFF_SECONDS = (1.0, 4.0)
 RETRY_STATUSES = (408, 429, 500, 502, 503, 504)
 
+def _user_agent() -> str:
+    from baton import __version__
+    return f"baton-kernel/{__version__} (+https://pypi.org/project/baton-kernel)"
+
+
+USER_AGENT = _user_agent()
+
 
 class ProviderError(BatonError):
     """The provider could not be reached, or answered with something unusable."""
@@ -52,8 +59,15 @@ def http_json(url: str, payload: dict[str, Any],
             f"{FORBID_ENV} is set — this process must not make a paid model call")
 
     body = json.dumps(payload).encode("utf-8")
-    hdrs = {"Content-Type": "application/json"}
-    hdrs.update(headers or {})
+    # A User-Agent is not politeness, it is reachability. urllib sends
+    # `Python-urllib/3.x` by default, and that string is on enough blocklists
+    # that a vendor behind Cloudflare rejects the request with 403 code 1010
+    # before it reaches their API — which is exactly how Groq presented as
+    # broken until a consumer traced it. A library whose whole transport story
+    # is "stdlib urllib, no SDK" has to identify itself, or "no dependencies"
+    # quietly means "does not work with some vendors".
+    hdrs = {"Content-Type": "application/json", "User-Agent": USER_AGENT}
+    hdrs.update(headers or {})          # a host application may override it
 
     last = ""
     for attempt in range(1, MAX_ATTEMPTS + 1):
