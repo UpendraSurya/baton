@@ -15,7 +15,7 @@ import threading
 import time
 
 import uuid
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field, fields, replace
 from typing import Callable, Mapping, Optional, Protocol
 
 from baton.agent import AgentSpec
@@ -92,6 +92,23 @@ class Guards:
     require_independent_work: bool = True
     wall_clock: bool = True
     preflight: bool = True
+
+    def without(self, *names: str) -> "Guards":
+        """A copy of this Guards with the named guard(s) switched off.
+
+        `dataclasses.replace(guards, x=False)` already does this, but it asks
+        every caller to import dataclasses and know it applies here, for the
+        single most common thing anything does with a Guards instance it did
+        not just construct from scratch: turn one more thing off without
+        losing whatever else was already configured on it. Found by real use —
+        tests/test_anti_vacuity.py and test_every_guard_is_falsifiable.py both
+        hand-construct one-guard-off instances throughout instead.
+        """
+        valid = {f.name for f in fields(self)}
+        unknown = sorted(set(names) - valid)
+        if unknown:
+            raise ValueError(f"not a guard on {type(self).__name__}: {unknown}")
+        return replace(self, **{name: False for name in names})
 
 
 @dataclass
