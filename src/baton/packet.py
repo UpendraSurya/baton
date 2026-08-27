@@ -148,12 +148,20 @@ class Decision:
     # gate has to say WHICH work satisfies WHICH requirement, because "looks
     # good to me" is the failure mode a gate exists to prevent.
     coverage: tuple[str, ...] = ()
+    # PROPOSE_DONE only. A worker that genuinely looked and found nothing —
+    # "no such file", "zero matches", "no migration needed" — is a legitimate
+    # completion with no artifact to attach, and is not the same claim as
+    # "trust me, it's done" with evidence that does not exist. Both arrive with
+    # empty `artifacts`; only this field tells them apart, and only THIS one is
+    # allowed through with none. See baton.contract.validate_decision.
+    nothing_found: bool = False
 
     def to_dict(self) -> dict:
         return {"decision": self.kind.value, "to": self.to, "goal": self.goal,
                 "rationale": self.rationale, "summary": self.summary,
                 "reason": self.reason, "coverage": list(self.coverage),
-                "artifacts": [a.to_dict() for a in self.artifacts]}
+                "artifacts": [a.to_dict() for a in self.artifacts],
+                "nothing_found": self.nothing_found}
 
     def render(self, *, preamble: str = "") -> str:
         """This decision as the text an agent would emit — the inverse of
@@ -168,8 +176,11 @@ class Decision:
 
         Empty fields are omitted rather than sent as "": a HANDOFF carrying
         `"coverage": []` invites a reader to think coverage was considered.
+        `nothing_found: False` is the default for every decision that never
+        uses it and would otherwise clutter all three other verbs' wire form.
         """
-        body = {k: v for k, v in self.to_dict().items() if v not in ("", [], None)}
+        body = {k: v for k, v in self.to_dict().items()
+                if v not in ("", [], None, False)}
         body["decision"] = self.kind.value          # never dropped, even if falsy
         head = f"{preamble.strip()}\n\n" if preamble.strip() else ""
         return head + "```handoff\n" + json.dumps(body, ensure_ascii=False) + "\n```"

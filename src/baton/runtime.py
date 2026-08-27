@@ -621,11 +621,16 @@ def run(charter: Charter, agents: Mapping[str, AgentSpec], dispatch: Dispatch, *
 
         if decision.kind is Kind.PROPOSE_DONE:
             st.last_proposer = agent.name
+            # nothing_found reaches the gate as a flag, not silently folded
+            # into the goal text — a gate scanning `baton.flags` for how a run
+            # got here should see this the same way it sees "stalled_loop" or
+            # "malformed_routing", not have to parse it back out of prose.
+            flags = ("nothing_found",) if decision.nothing_found else ()
             baton = _gate_baton(
                 charter, trace.trace_id, st, agent.name, baton.artifacts,
                 goal=(f"{agent.name} proposes the brief is satisfied: "
                       f"{decision.summary}"),
-                artifacts=decision.artifacts)
+                artifacts=decision.artifacts, flags=flags)
             continue
 
         # HANDOFF — killer 3: ping-pong. Escalate first, terminate second.

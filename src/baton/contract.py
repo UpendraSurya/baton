@@ -117,6 +117,12 @@ def render_routing_contract(agent: AgentSpec, charter: Charter, *,
         "Do not cite a path you did not write. If you have no file system, put",
         "the deliverable in `content` — the gate can only judge what it can see.",
         "",
+        "If you genuinely looked and there is nothing to deliver — no such file,",
+        "zero matches, no change needed — set `\"nothing_found\": true` and use",
+        "`summary` to say exactly what you looked for. That is not an excuse to",
+        "skip evidence: a summary with no explanation is refused the same as an",
+        "empty claim.",
+        "",
         "You cannot end the run yourself. PROPOSE_DONE sends the work to the gate.",
     ]
     return "\n".join(out)
@@ -223,7 +229,8 @@ def parse_decision(text: str) -> Decision:
                             "" if c is None else str(c).strip()
                             for c in (payload.get("coverage") or [])),
                         reason=str(payload.get("reason", "")).strip(),
-                        artifacts=_artifacts(payload.get("artifacts")))
+                        artifacts=_artifacts(payload.get("artifacts")),
+                        nothing_found=bool(payload.get("nothing_found", False)))
     raise ParseFailure(last_error)
 
 
@@ -249,10 +256,28 @@ def validate_decision(decision: Decision, agent: AgentSpec, charter: Charter,
         # Observed live: a worker proposed done with no artifact at all, and the
         # gate ratified its *claim* about a deliverable that existed nowhere.
         # A proposal with no evidence attached is unverifiable by construction.
+        #
+        # `nothing_found` is the one way out of this, and it is a different
+        # claim: not "the work exists, trust me" but "I looked, and there is
+        # nothing to deliver". Defect found by real use — before this, an
+        # agent that legitimately found nothing had no way to say so; every
+        # attempt looked identical to the unverifiable claim above and was
+        # refused the same way. It still needs a summary: ticking a box is not
+        # more verifiable than a bare claim, and the gate needs to know what
+        # was actually searched.
+        if decision.nothing_found and decision.summary.strip():
+            return decision
+        if decision.nothing_found:
+            raise IllegalTarget(
+                "nothing_found needs a summary: say what you looked for and "
+                "why there is nothing to deliver — the gate cannot judge a "
+                "flag with no explanation behind it")
         raise IllegalTarget(
             "PROPOSE_DONE with no artifacts: attach the work product itself "
-            "(path + content, or path + preview if the reader can open it) — "
-            "the gate cannot ratify a claim it has no way to check")
+            "(path + content, or path + preview if the reader can open it), "
+            "or set nothing_found (with a summary) if you looked and there is "
+            "genuinely nothing to deliver — the gate cannot ratify a claim it "
+            "has no way to check")
 
     if decision.kind in (Kind.HANDOFF, Kind.REJECT) and enforce_target:
         moves = charter.legal_moves_for(agent)

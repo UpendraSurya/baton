@@ -123,9 +123,10 @@ summary: str = ''
 reason: str = ''
 artifacts: tuple[ArtifactRef, ...] = ()
 coverage: tuple[str, ...] = ()
+nothing_found: bool = False
 ```
 
-Decision(kind: 'Kind', to: 'str' = '', goal: 'str' = '', rationale: 'str' = '', summary: 'str' = '', reason: 'str' = '', artifacts: 'tuple[ArtifactRef, ...]' = (), coverage: 'tuple[str, ...]' = ())
+Decision(kind: 'Kind', to: 'str' = '', goal: 'str' = '', rationale: 'str' = '', summary: 'str' = '', reason: 'str' = '', artifacts: 'tuple[ArtifactRef, ...]' = (), coverage: 'tuple[str, ...]' = (), nothing_found: 'bool' = False)
 
 ### `Kind`
 
