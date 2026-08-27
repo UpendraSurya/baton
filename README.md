@@ -166,8 +166,8 @@ permitted to end a run.
 
 ## The stop rules
 
-Every run ends with exactly one of ten terminal reasons. There is no path out
-of the loop that returns "it just stopped".
+**Once a run starts, it ends with exactly one of ten terminal reasons.** There
+is no path out of the loop that returns "it just stopped".
 
 | Killer | Defence | Terminal reason |
 |---|---|---|
@@ -184,6 +184,18 @@ of the loop that returns "it just stopped".
 
 Budget halts *without* a final gate call, unlike hops: a call made past the
 ceiling would spend money the charter forbade.
+
+**"Once a run starts" is a real boundary, not a hedge.** A charter that could
+never have run at all — an empty pool, a gate agent with the wrong role, a
+budget that cannot survive its own first hop — is refused *before* that point,
+by raising `CharterInvalid`, not by manufacturing a `RunResult` for a run that
+took zero hops. `run()` checks this three ways, all before any trace exists:
+`charter.validate()`, the agent-roster check, and — only when you pass
+`usd_per_call` — `plan.estimate(...).raise_if_infeasible()`. Once a trace has
+been opened, `CharterInvalid` cannot happen again; every path out from there is
+one of the ten reasons above. A caller who only handles `RunResult` needs one
+`try/except CharterInvalid` around the call, the same way a config error is
+handled anywhere else — not a wider `except` in the run loop it never reaches.
 
 ## Testing
 
