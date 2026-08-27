@@ -24,3 +24,29 @@ jobs:
         env:
           BATON_FORBID_REAL_DISPATCH: "1"
         run: bash verify.sh
+
+  # The gate above proves the SOURCE works. Users never run the source -- they run
+  # a wheel, unpacked somewhere that does not contain this repo. This job proves
+  # the ARTIFACT works. It is the same sequence the README's "Reproduce it" block
+  # documents, gated instead of left as a step a human has to remember.
+  ship-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: python3 -m pip install --upgrade build
+      - name: build the wheel
+        run: python3 -m build --wheel
+      - name: install it into an empty venv
+        run: python3 -m venv /tmp/v && /tmp/v/bin/pip install dist/*.whl
+      - name: nothing but baton-kernel arrived
+        run: |
+          extra=$(/tmp/v/bin/pip list --format=freeze | grep -viE '^(baton-kernel|pip|setuptools|wheel)=' || true)
+          test -z "$extra" || { echo "undeclared dependency: $extra"; exit 1; }
+      - name: it imports from outside the repo
+        run: cd /tmp && /tmp/v/bin/python -c "import baton; from baton import run, Charter, AgentSpec, TERMINAL_REASONS; print(baton.__version__)"
+      - name: the suite passes against the INSTALLED package
+        env:
+          BATON_FORBID_REAL_DISPATCH: "1"
+        run: cd /tmp && /tmp/v/bin/python -m unittest discover -s "$GITHUB_WORKSPACE/tests" -t "$GITHUB_WORKSPACE"

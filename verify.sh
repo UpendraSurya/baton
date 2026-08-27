@@ -143,6 +143,36 @@ else
 fi
 
 # --------------------------------------------------------------------------- #
+head_ "5b. Docs cannot drift from the code"
+if python3 -c '
+import sys, pathlib
+sys.path.insert(0, "src"); sys.path.insert(0, "scripts")
+import gen_api_docs
+sys.exit(0 if pathlib.Path("docs/api.md").read_text() == gen_api_docs.render() else 1)' 2>/dev/null
+then ok "docs/api.md matches baton.__all__"
+else bad "docs/api.md is stale — run scripts/gen_api_docs.py"; fi
+
+if python3 -c '
+import sys, pathlib
+sys.path.insert(0, "src")
+import baton
+doc = pathlib.Path("docs/api.md").read_text()
+sys.exit(1 if [n for n in baton.__all__ if f"`{n}`" not in doc] else 0)' 2>/dev/null
+then ok "every public symbol appears in the reference"
+else bad "a public symbol is missing from docs/api.md"; fi
+
+# This check used to REQUIRE `pip install baton-kernel` in the quickstart -- a
+# command that 404s, because the package is not on PyPI. A gate that enforces a
+# false instruction is worse than no gate. tests/test_readme_install.py now holds
+# the docs and PUBLISHED_TO_PYPI in agreement in both directions; here we only
+# assert the quickstart gives the reader SOME command that works today.
+if python3 -c '
+import pathlib, sys
+d = pathlib.Path("docs/quickstart.md")
+sys.exit(0 if d.is_file() and "pip install" in d.read_text() else 1)' 2>/dev/null
+then ok "the quickstart exists and shows a runnable install line"
+else bad "docs/quickstart.md missing or has no install line"; fi
+
 head_ "6. The ARTIFACT, not just the repo"
 
 # Everything above runs with PYTHONPATH=src, which is fast and correct about the

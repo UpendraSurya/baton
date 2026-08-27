@@ -4,9 +4,32 @@
 
 A Python library for multi-agent systems where **the agents choose who runs next**.
 
+## Install
+
+`baton-kernel` is **not on PyPI yet**, so install from source — a `pip install
+baton-kernel` would 404 today, and this README will not tell you to run a command
+that fails:
+
 ```bash
-pip install baton-kernel
+git clone https://github.com/upendrasurya/baton && cd baton
+pip install .
 ```
+
+## See it work — free, offline, no API key, two seconds
+
+```bash
+python3 examples/triage.py
+```
+
+```
+billing   ratified   intake -> refunds     -> gate   $0.0000
+bug       ratified   intake -> engineering -> gate   $0.0000
+confused  ratified   intake -> docs        -> gate   $0.0000
+```
+
+Three tickets, one charter, one agent pool — and three different paths through it.
+No edge was ever drawn between `intake` and `refunds`; intake decided at runtime.
+Add `--live` to run the same charter against a real model (~$0.002).
 
 Instead of a pre-baked DAG, each agent ends its output with one fenced `handoff`
 block naming the next agent. The kernel makes that safe: legal-move enforcement,
