@@ -36,46 +36,42 @@ block naming the next agent. The kernel makes that safe: legal-move enforcement,
 a budget ceiling, a hop cap, a ping-pong detector, and a gate agent that is the
 only role permitted to end a run.
 
-## What is proven, and what is not
+## What's proven
 
-Dynamic routing was measured against the static DAG it replaces, on 30 real
-projects, three arms, 90 runs, one model held constant:
+Four things are true of this library today, each backed by a test or a
+reproducible measurement — not by the routing idea it was built to test (see
+[What's not proven yet](#whats-not-proven-yet) below).
 
-| arm | delivered | vs static (exact McNemar) |
-|---|---|---|
-| static DAG | 19/30 (63%) | — |
-| blind dynamic | 17/30 (57%) | p = 0.774 |
-| reputation-aware dynamic | 21/30 (70%) | p = 0.791 |
+**Zero dependencies, and it stays that way.** `dependencies = []` in
+`pyproject.toml`. Providers talk HTTP through `urllib` from the standard
+library — no vendor SDK, no transitive tree. `tests/test_isolation.py` fails
+the build the moment that list grows past empty, and separately walks every
+import in `baton/*.py` with `ast` to keep a vendor SDK from entering even as a
+lazy, function-body import.
 
-**Nothing separated.** 12 of the 30 briefs produced identical outcomes under all
-three arms and carry no information at all. So this library does not claim that
-agents choosing their own successor beats a graph you drew yourself — its own
-benchmark declined to show that.
+**A runtime that always stops, for a declared reason.** Legal-move
+enforcement, a budget ceiling, a hop cap, a ping-pong detector, and a gate
+agent that is the only role permitted to end a run — see
+[The stop rules](#the-stop-rules) below for the full table of ten. An
+adversarial suite drives deliberately hostile agents at it over **6,200
+randomised runs** — 4,000 of them the termination property itself, 2,000
+checking the backstop is never reached with every guard on, 200 checking a
+gate outside the pool is always refused — and it has never produced a run
+that ended any other way; eight of the ten reasons arise spontaneously in
+that suite, and the two newest — `ratified_without_coverage` and
+`time_exhausted` — are covered by targeted tests rather than by the fuzzer.
+`tests/test_anti_vacuity.py` deletes each guard alone and asserts the
+observed behaviour changes, so two guards covering for each other cannot hide
+behind a green suite.
 
-What *is* proven is the **runtime**: every run ends for exactly one of ten
-declared reasons. An adversarial suite drives deliberately hostile agents at it
-over **6,200 randomised runs** — 4,000 of them the termination property itself,
-2,000 checking the backstop is never reached with every guard on, 200 checking a
-gate outside the pool is always refused — and it has never produced a run that
-ended any other way; eight of the ten arise
-spontaneously in that suite, and the two newest —
-`ratified_without_coverage` and `time_exhausted` — are covered by targeted tests
-rather than by the fuzzer. If you want agents to route themselves, this is the envelope that
-makes it safe to try. The write-up, including why the measurement is hard, is
-in [docs/measuring-dynamic-routing.md](docs/measuring-dynamic-routing.md).
-
-**Zero dependencies, and it stays that way.** Providers talk HTTP through `urllib`
-from the standard library — no vendor SDK, no transitive tree. A test fails the
-build if that ever changes.
-
-The footprint, measured rather than asserted — `pip install` into an empty venv,
-Python 3.10 on an M-series Mac:
+**The footprint, measured rather than asserted** — `pip install` into an
+empty venv, Python 3.10 on an M-series Mac:
 
 | | |
 |---|---|
-| wheel | **50 KB** (`baton_kernel-0.1.0-py3-none-any.whl`, 51,642 bytes) |
+| wheel | **58 KB** (`baton_kernel-0.1.0-py3-none-any.whl`, 59,298 bytes) |
 | packages added to the environment | **1** — its own; `Requires-Dist` is empty |
-| cold import, installed | **~25 ms** (5 runs: 25.5 / 25.6 / 25.4 / 25.7 / 25.4) |
+| cold import, installed | **~18 ms** (5 runs: 16.8 / 15.7 / 19.6 / 16.9 / 20.1) |
 
 Reproduce it:
 
@@ -87,6 +83,18 @@ python3 -m build --wheel && python3 -m venv /tmp/v && /tmp/v/bin/pip install dis
 
 Numbers move with machine and interpreter, so run it on yours rather than
 trusting these. What does not move is the package count.
+
+**It runs live against real providers.** `baton/providers/` ships `gemini`,
+`mistral` and an OpenAI-compatible client (`openai_compat`, which also covers
+Groq) — each talking raw HTTPS through `urllib`, each with a test suite that
+injects a fake transport and inspects the exact request built. This is not
+theoretical: a real run against Groq came back `HTTP 403` behind Cloudflare
+because `urllib`'s default `Python-urllib/3.x` user agent is blocklisted, a
+bug the scripted suite could not see (every provider test injects its own
+transport) and a live call did — fixed and covered by
+`tests/test_user_agent.py`. `python3 examples/smoke_gemini.py` runs one real
+hop for about $0.004 against a live model, and `python3 examples/triage.py
+--live` does the same for the routing demo above.
 
 ```
 baton/              the core: Agent, Baton, Charter, Runtime, Trace
@@ -197,15 +205,46 @@ one of the ten reasons above. A caller who only handles `RunResult` needs one
 `try/except CharterInvalid` around the call, the same way a config error is
 handled anywhere else — not a wider `except` in the run loop it never reaches.
 
+## What's not proven yet
+
+The founding idea behind this library — that agents choosing their own
+successor beats a graph you drew yourself — is **not** one of the claims
+above, and this section is not hiding that.
+
+Dynamic routing was measured against the static DAG it replaces, on 30 real
+projects, three arms, 90 runs, one model held constant:
+
+| arm | delivered | vs static (exact McNemar) |
+|---|---|---|
+| static DAG | 19/30 (63%) | — |
+| blind dynamic | 17/30 (57%) | p = 0.774 |
+| reputation-aware dynamic | 21/30 (70%) | p = 0.791 |
+
+**Nothing separated.** 12 of the 30 briefs produced identical outcomes under all
+three arms and carry no information at all. So this library does not claim that
+agents choosing their own successor beats a graph you drew yourself — its own
+benchmark declined to show that.
+
+The write-up, including why the measurement is hard and why a follow-up
+attempt (`EMBED-1`) tests a deliberately weaker, defensible claim instead of
+re-running this one, is in
+[docs/measuring-dynamic-routing.md](docs/measuring-dynamic-routing.md). If you
+want agents to route themselves anyway, [What's proven](#whats-proven) above
+is the envelope that makes it safe to try — it just is not, itself, evidence
+that you should prefer it to a graph you drew yourself.
+
 ## Testing
 
 `bash verify.sh` — free, offline, deterministic. Tier 2 (`bench/replay.py
 --confirm-spend`) costs real money and is never run by the gate.
 
-Every guard in `baton.runtime.Guards` can be switched off individually. That is
-not a debug convenience: `tests/test_anti_vacuity.py` deletes each one alone and
-asserts the behaviour changes, because two overlapping guards cover for each
-other and leave a green suite that proves nothing.
+Every guard in `baton.runtime.Guards` can be switched off individually — either
+by constructing one explicitly (`Guards(hops=False)`) or, to turn one more off
+an instance you already hold without losing what it already has configured,
+`guards.without("hops")`. That is not a debug convenience:
+`tests/test_anti_vacuity.py` deletes each one alone and asserts the behaviour
+changes, because two overlapping guards cover for each other and leave a green
+suite that proves nothing.
 
 Parser fixtures are real recorded agent output pulled from the sandbox corpus
 (`tests/fixtures/extract_real_prose.py`), not hand-written JSON — a parser suite
