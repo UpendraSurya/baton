@@ -24,6 +24,14 @@ def roster(**kw):
     return a
 
 
+def reachable_roster(**kw):
+    """`roster()` minus `orphan` — for tests about something other than
+    reachability. `orphan` makes every charter infeasible on its own, which
+    would make a budget-only test look like it is asserting two things."""
+    a = {k: v for k, v in roster(**kw).items() if k != "orphan"}
+    return a
+
+
 def charter(**kw):
     base = dict(brief="b", entry_agent="alpha", gate_agent="gate",
                 agent_pool=frozenset(roster()), acceptance_criteria=("x",),
@@ -40,7 +48,8 @@ class WorstCase(unittest.TestCase):
         self.assertAlmostEqual(0.14, e.worst_case_usd, places=6)
 
     def test_a_free_estimate_needs_no_price(self):
-        e = plan.estimate(charter(), roster())
+        agents = reachable_roster()
+        e = plan.estimate(charter(agent_pool=frozenset(agents)), agents)
         self.assertEqual(0.0, e.worst_case_usd)
         self.assertTrue(e.feasible)
 
@@ -60,14 +69,18 @@ class UnsurvivableBudgetsAreRefusedUpFront(unittest.TestCase):
         self.assertIn("checked between hops", " ".join(e.problems))
 
     def test_a_survivable_ceiling_is_feasible_even_if_it_halts_early(self):
-        e = plan.estimate(charter(budget_ceiling_usd=0.50), roster(),
+        agents = reachable_roster()
+        e = plan.estimate(charter(agent_pool=frozenset(agents),
+                                  budget_ceiling_usd=0.50), agents,
                           usd_per_call=0.01)
         self.assertTrue(e.feasible)
 
     def test_a_worst_case_over_the_ceiling_warns_but_stays_feasible(self):
         """Halting early on budget is correct behaviour, not a misconfiguration."""
-        e = plan.estimate(charter(budget_ceiling_usd=0.05, max_hops=20),
-                          roster(), usd_per_call=0.002)
+        agents = reachable_roster()
+        e = plan.estimate(charter(agent_pool=frozenset(agents),
+                                  budget_ceiling_usd=0.05, max_hops=20),
+                          agents, usd_per_call=0.002)
         self.assertTrue(e.feasible)
         self.assertIn("halt early", " ".join(e.warnings))
 
@@ -77,7 +90,15 @@ class GraphProblemsFoundOffline(unittest.TestCase):
         """Staffed, paid for in the roster, and the run can never arrive."""
         e = plan.estimate(charter(), roster())
         self.assertIn("orphan", e.unreachable)
-        self.assertIn("unreachable", " ".join(e.warnings))
+        self.assertIn("unreachable", " ".join(e.problems))
+
+    def test_an_unreachable_agent_makes_the_plan_infeasible(self):
+        """Defect found by real use: an unreachable agent was reported as a
+        WARNING, so `feasible` stayed True. A staffed agent the run can never
+        arrive at means the plan does not complete as designed, and a caller
+        checking only `feasible` before spending money never saw it."""
+        e = plan.estimate(charter(), roster())
+        self.assertFalse(e.feasible)
 
     def test_a_dead_end_agent_is_reported(self):
         agents = roster(cul_de_sac=AgentSpec("cul_de_sac", "# c", frozenset()))

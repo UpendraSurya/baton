@@ -107,9 +107,15 @@ def estimate(charter: Charter, agents: Mapping[str, AgentSpec],
     reach = reachable_from(charter.entry_agent, agents, charter)
     unreachable = tuple(sorted(set(charter.agent_pool) - reach))
     if unreachable:
-        warnings.append(
+        # Not a warning: a staffed agent the run can never arrive at is a plan
+        # that does not complete as designed, and `feasible` is the one flag a
+        # caller is invited to check before spending anything. Until
+        # 2026-08-27 this was reported as a warning, so `feasible` stayed True
+        # for a charter that could never route work to part of its own roster.
+        problems.append(
             f"unreachable from {charter.entry_agent}: {', '.join(unreachable)} "
-            "— staffed but the run can never arrive there")
+            "— staffed but the run can never arrive there; a plan that pays "
+            "for an agent it can never route to does not complete as staffed")
 
     dead_ends = tuple(sorted(
         name for name in charter.agent_pool
