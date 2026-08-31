@@ -233,6 +233,62 @@ want agents to route themselves anyway, [What's proven](#whats-proven) above
 is the envelope that makes it safe to try — it just is not, itself, evidence
 that you should prefer it to a graph you drew yourself.
 
+## Known limitations
+
+Two things that will bite you, documented here so they are limitations and not
+mysteries.
+
+### The routing contract makes the model escape its work product as JSON
+
+`render_routing_contract` asks the agent for one JSON object carrying both the
+routing decision **and** its entire free-text work product as a string field.
+Long outputs break it: an unescaped quote or a raw newline inside that field and
+the whole reply fails to parse.
+
+Measured on 400 items, one model (`mistral-medium-latest`), one task. Arm A
+failure rate by output-length quartile:
+
+| quartile | contract failures |
+|---|---|
+| shortest 25% | 0.0% |
+| 2nd | 0.0% |
+| 3rd | 0.0% |
+| longest 25% | **20.9%** |
+
+Failures had a median of 610 output tokens; successes 247. Overall compliance
+was 94.0% — the deficit is not spread evenly, it is entirely in long outputs.
+A variant that moved the prose **out** of the envelope, leaving a fenced block
+containing only `{"to": "<agent>"}`, failed **0 of 400** at a median of 70
+output tokens, with accuracy non-inferior (84.8% vs 83.0%, McNemar p = 0.44).
+
+**What that does and does not establish.** The mechanism is well supported —
+the dose-response curve is flat-flat-flat-then-steep, and removing the
+requirement removes the failures. The accuracy comparison is post-hoc and not
+pre-registered, and the cheaper variant carries less: the structured artifact
+no longer travels in the envelope, so if your downstream agents need that
+payload handed to them, this moves the problem rather than solving it. That is
+why the shipped contract is unchanged.
+
+**What to do about it.** Keep per-hop work products short, or give agents a
+shared disk and let `ArtifactRef.path` carry the deliverable instead of
+`content`. `repair_nudge` already retries a malformed reply, and a run that
+cannot recover ends at the `dispatch_failure` terminal reason rather than
+silently losing the answer.
+
+### `Charter.security_tier` is advisory — baton enforces nothing
+
+It is validated against `("L", "M", "H")`, serialised, and printed into every
+agent prompt. That is all it does. **No guard, budget, whitelist or terminal
+reason branches on it**, and nothing in this library restricts what a
+high-tier run may attempt. It exists because the host application this adapter
+was written against classifies its own agents that way, and the model is told
+which tier it is operating under.
+
+If you need a real control, the enforced bounds are the ones in
+[The stop rules](#the-stop-rules): `agent_pool`, `AgentSpec.can_hand_to`,
+`budget_ceiling_usd`, `max_hops`, `max_wall_seconds`, `max_dispatch_seconds`.
+Do not read `security_tier` as one of them.
+
 ## Testing
 
 `bash verify.sh` — free, offline, deterministic. Tier 2 (`bench/replay.py

@@ -7,6 +7,10 @@ would have deleted those too, so they move here: bounds without edges.
 
 acceptance_criteria are required and are written BEFORE the run, so the gate agent
 cannot be talked into lowering the bar halfway through.
+
+Every field here is an enforced bound EXCEPT security_tier, which is advisory: it
+is validated and shown to the model, and nothing in baton acts on it. See the
+comment on that field.
 """
 from __future__ import annotations
 
@@ -36,6 +40,15 @@ class Charter:
     # checked between hops can never notice.
     max_wall_seconds: float = 3600.0
     max_dispatch_seconds: float = 300.0
+    # ADVISORY, NOT ENFORCED. Validated against TIERS, serialised, and printed
+    # into every agent prompt — and nothing else in this library reads it. No
+    # guard, budget, whitelist or terminal reason branches on it. It is here
+    # because the host application this was written against classifies its own
+    # agents that way and the model is told which tier it is under. The bounds
+    # that are actually enforced are agent_pool, AgentSpec.can_hand_to,
+    # budget_ceiling_usd, max_hops, max_wall_seconds and max_dispatch_seconds.
+    # tests/test_security_tier_is_advisory.py fails if this stops being true in
+    # either direction.
     security_tier: str = "M"
     max_rejects_per_agent: int = 2
     pressure_threshold: float = 0.8
