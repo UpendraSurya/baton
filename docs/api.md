@@ -69,13 +69,9 @@ The entire contract between baton and whatever runs a model.
 
 `'gate'`
 
-str(object='') -> str str(bytes_or_buffer[, encoding[, errors]]) -> str
-
 ### `WORKER`
 
 `'worker'`
-
-str(object='') -> str str(bytes_or_buffer[, encoding[, errors]]) -> str
 
 ### `worker`
 
@@ -189,8 +185,6 @@ Every defence, individually switchable.
 ### `TERMINAL_REASONS`
 
 `('ratified', 'budget_exhausted', 'hops_exhausted', 'stalled', 'dispatch_failure', 'charter_violation', 'reject_cap_reached', 'ratified_without_deliverable', 'ratified_without_coverage', 'time_exhausted')`
-
-Built-in immutable sequence.
 
 ### `BatonError`
 
@@ -324,8 +318,6 @@ Build a Reputation from two counts: pieces of work produced per agent, and piece
 ### `__version__`
 
 `'0.1.0'`
-
-str(object='') -> str str(bytes_or_buffer[, encoding[, errors]]) -> str
 
 ## Ungrouped
 

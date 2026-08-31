@@ -14,6 +14,7 @@ import sqlite3
 import tempfile
 import unittest
 
+from baton.adapters.company_os import registry as R
 from baton.adapters.company_os import state as S
 from baton.agent import GATE, AgentSpec
 from baton.charter import Charter
@@ -133,6 +134,18 @@ class EveryProviderNamesItsModel(unittest.TestCase):
         self.assertEqual(D.resolve_model("opus"), "claude-opus-4-8")
 
 
+# cost_usd() prices against the HOST's rate card (core.config.MODEL_PRICES), so
+# these five need the Company OS checkout on disk exactly like the other adapter
+# tests do. Without this they pass on the author's laptop and error with
+# HostUnavailable on every other machine — which is what happened on the first
+# CI run after the repo was pushed. Same guard as tests/test_adapter_dispatch.py.
+_HOST = R.repo_path()
+needs_host = unittest.skipUnless(
+    (_HOST / "registry" / "agent_registry.json").is_file(),
+    f"no Company OS checkout at {_HOST}")
+
+
+@needs_host
 class CacheTokensArePricedAsCacheTokens(unittest.TestCase):
     """A cached read is not a fresh input token.
 

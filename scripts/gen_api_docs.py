@@ -32,6 +32,16 @@ GROUPS = [
 
 
 def first_para(obj) -> str:
+    # Only classes, routines and modules carry a docstring of their own.
+    # inspect.getdoc falls back to the TYPE's docstring for anything else, so a
+    # plain value like __version__ ('0.1.0') rendered CPython's documentation for
+    # `str` into the reference — text that is an interpreter implementation
+    # detail and can differ between the 3.10/3.11/3.12 lanes CI runs. A
+    # generated file whose content depends on the interpreter cannot be checked
+    # for drift: it matched on the author's 3.10 and was reported stale by every
+    # CI lane on the first push.
+    if not (inspect.isclass(obj) or inspect.isroutine(obj) or inspect.ismodule(obj)):
+        return ""
     d = inspect.getdoc(obj) or ""
     return d.split("\n\n")[0].replace("\n", " ").strip() if d else ""
 

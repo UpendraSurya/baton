@@ -144,13 +144,37 @@ fi
 
 # --------------------------------------------------------------------------- #
 head_ "5b. Docs cannot drift from the code"
-if python3 -c '
-import sys, pathlib
+# The previous form was `python3 -c '...' 2>/dev/null` and reported EVERY nonzero
+# exit as "stale". That conflates three different states — the file was edited,
+# the generator crashed, and the generator renders differently on this
+# interpreter — and threw away the only evidence that separates them. The first
+# CI run after the repo was pushed failed here on all three Python lanes while
+# the same check passed locally, and the message could not say why.
+_api_out=$(python3 - <<'PYEOF' 2>&1
+import sys, pathlib, difflib, traceback
 sys.path.insert(0, "src"); sys.path.insert(0, "scripts")
-import gen_api_docs
-sys.exit(0 if pathlib.Path("docs/api.md").read_text() == gen_api_docs.render() else 1)' 2>/dev/null
-then ok "docs/api.md matches baton.__all__"
-else bad "docs/api.md is stale — run scripts/gen_api_docs.py"; fi
+try:
+    import gen_api_docs
+    have = pathlib.Path("docs/api.md").read_text().splitlines()
+    want = gen_api_docs.render().splitlines()
+except Exception:
+    traceback.print_exc()
+    sys.exit(2)
+if have == want:
+    sys.exit(0)
+d = list(difflib.unified_diff(have, want, "docs/api.md",
+                              "gen_api_docs.render()", lineterm=""))
+print("\n".join(d[:40]))
+if len(d) > 40:
+    print(f"... {len(d) - 40} more diff lines")
+sys.exit(1)
+PYEOF
+)
+case $? in
+  0) ok "docs/api.md matches baton.__all__" ;;
+  1) bad "docs/api.md is stale — run scripts/gen_api_docs.py" "$_api_out" ;;
+  *) bad "the docs-drift check could not RUN — not the same as stale" "$_api_out" ;;
+esac
 
 if python3 -c '
 import sys, pathlib
