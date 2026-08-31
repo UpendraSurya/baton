@@ -25,6 +25,9 @@ from enum import Enum
 
 
 class Kind(str, Enum):
+    """The four verbs an agent may send. HANDOFF and PROPOSE_DONE are the
+    worker's; RATIFY and REJECT are the gate's. Nothing else is a decision."""
+
     HANDOFF = "HANDOFF"
     PROPOSE_DONE = "PROPOSE_DONE"
     RATIFY = "RATIFY"

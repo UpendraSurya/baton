@@ -42,7 +42,13 @@ def first_para(obj) -> str:
     # CI lane on the first push.
     if not (inspect.isclass(obj) or inspect.isroutine(obj) or inspect.ismodule(obj)):
         return ""
-    d = inspect.getdoc(obj) or ""
+    # For a class, read only its OWN __doc__. inspect.getdoc walks the MRO, and
+    # what the bases carry is a moving target: an undocumented `class Kind(str,
+    # Enum)` rendered "An enumeration." on 3.10 and CPython's `str` docs on
+    # 3.11/3.12, because 3.11 dropped Enum's default docstring. Never inherit.
+    d = (obj.__dict__.get("__doc__") if inspect.isclass(obj)
+         else inspect.getdoc(obj)) or ""
+    d = inspect.cleandoc(d)
     return d.split("\n\n")[0].replace("\n", " ").strip() if d else ""
 
 

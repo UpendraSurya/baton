@@ -126,7 +126,7 @@ Decision(kind: 'Kind', to: 'str' = '', goal: 'str' = '', rationale: 'str' = '', 
 
 ### `Kind`
 
-An enumeration.
+The four verbs an agent may send. HANDOFF and PROPOSE_DONE are the worker's; RATIFY and REJECT are the gate's. Nothing else is a decision.
 
 ### `ArtifactRef`
 
