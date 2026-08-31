@@ -3,7 +3,7 @@
 All notable changes to `baton-kernel`. Format follows [Keep a Changelog];
 this project uses [Semantic Versioning].
 
-## [0.1.0] — 2026-08-23
+## [0.1.0] — 2026-08-31
 
 First release. The runtime is the product; the routing thesis it was built to
 test came back **inconclusive**, and that result ships with it rather than
@@ -34,6 +34,45 @@ being quietly left out — see "What is proven, and what is not" in the README.
   stack instead of a file. Traces are append-only, and the append is *checked*:
   a truncation or an edit underneath a run fails loudly.
 - Type hints throughout and `py.typed`.
+
+### Fixed
+
+Four defects that only real use found, and two that only a machine other than
+the author's could find.
+
+- **Providers send a `User-Agent`.** Groq was entirely unreachable without one —
+  Cloudflare rejects `Python-urllib/3.x` with HTTP 403 code 1010. 400 tests could
+  not see it, because every provider test injects a transport. A library whose
+  transport story is "stdlib urllib, no SDK" has to identify itself.
+- **`estimate()` makes an unreachable agent `feasible=False`,** not a warning
+  beside a cheerful verdict.
+- **`PROPOSE_DONE` may say "I looked and found nothing".** It previously raised
+  `IllegalTarget` when carrying no artifacts, so an agent that legitimately found
+  nothing had no legal way to report it.
+- **`Guards.without()`** switches one guard off without hand-building the other
+  nine.
+- **Tests no longer depend on the author's own machine.** `cost_usd()` prices
+  against the host's rate card, so the five tests that call it now carry the same
+  `needs_host` guard the other adapter tests already used. They passed on one
+  laptop and errored on every other machine.
+- **The generated API reference no longer embeds interpreter internals.** An
+  undocumented `class Kind(str, Enum)` inherited `Enum`'s docstring on 3.10 and
+  `str`'s on 3.11+, so `docs/api.md` could not be drift-checked against the
+  version matrix that checks it.
+
+### Documented
+
+- **Known limitations, with numbers.** The routing contract asks the model to
+  escape its work product as JSON; measured contract-failure rate by output-length
+  quartile is 0.0% / 0.0% / 0.0% / 20.9%. The mechanism, both over-claim caveats
+  and the workaround are in the README. The contract itself is unchanged.
+- **`Charter.security_tier` is advisory** — validated, serialised and shown to the
+  model, and enforced by nothing. A field with that name that enforces nothing is
+  a trap, so `tests/test_security_tier_is_advisory.py` now fails if anything starts
+  reading it *or* if the disclaimer is removed.
+- **Install instructions match reality.** `tests/test_readme_install.py` holds the
+  docs and a `PUBLISHED_TO_PYPI` flag in agreement in both directions, so the
+  README cannot go back to instructing an install that 404s.
 
 ### Notable behaviours
 - **A ratify with no artifact is not a delivery.** The gate's approval is
