@@ -3,6 +3,16 @@
 All notable changes to `baton-kernel`. Format follows [Keep a Changelog];
 this project uses [Semantic Versioning].
 
+## [Unreleased]
+
+### Added
+- **`baton.crossover`** — a pre-flight that answers "should this workload be
+  routed at all?" from a task log, a measured perception accuracy and the
+  hop-to-routing-call price ratio. Returns the threshold `rho*` and a verdict.
+  Closed form, no fitted parameters; it predicted the empirical winner in 30/30
+  cells of a frozen 620-item sweep. `perception_accuracy` has no default — the
+  library never invents a number to decide on.
+
 ## [0.1.0] — 2026-08-31
 
 First release. The runtime is the product; the routing thesis it was built to

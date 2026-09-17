@@ -1,6 +1,6 @@
 # API reference
 
-Every name in `baton.__all__` (40 of them). Generated from the source by `scripts/gen_api_docs.py` — if you add a public symbol and do not regenerate, `verify.sh` fails.
+Every name in `baton.__all__` (43 of them). Generated from the source by `scripts/gen_api_docs.py` — if you add a public symbol and do not regenerate, `verify.sh` fails.
 
 ## Running a job
 
@@ -280,6 +280,43 @@ reachable_from(entry: 'str', agents: 'Mapping[str, AgentSpec]', charter: 'Charte
 ```
 
 Every agent the run can actually arrive at, following whitelists.
+
+### `crossover`
+
+`baton.crossover`
+
+baton.crossover — should you route at all?
+
+### `Crossover`
+
+```python
+rho_star: float
+verdict: str
+best_static: StaticPath
+path_variance: float
+n_tasks: int
+pool_size: int
+perception_accuracy: float
+hops_per_routed_task: float
+routing_calls_per_task: float
+price_ratio: Optional[float]
+dynamic_cost_per_success: float
+exact_search: bool
+candidates: tuple[StaticPath, ...]
+```
+
+The answer to "should this workload be routed?", with its working.
+
+### `StaticPath`
+
+```python
+path: frozenset[str]
+success: float
+rho_star: float
+cost_per_success: float
+```
+
+One candidate fixed path and what routing must beat in it.
 
 ## Reputation
 

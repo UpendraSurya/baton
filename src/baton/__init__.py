@@ -35,12 +35,13 @@ the test suite fails the build if anything imports a vendor SDK.
 """
 from baton.agent import GATE, WORKER, AgentSpec, gate, worker
 from baton.charter import Charter
+from baton.crossover import Crossover, StaticPath
 from baton.contract import (parse_decision, render_prompt,
                             render_routing_contract, repair_nudge,
                             validate_decision)
 from baton.errors import (BatonError, CharterInvalid, IllegalTarget,
                           ParseFailure, RoleViolation, TraceCorrupt)
-from baton import plan, reputation
+from baton import crossover, plan, reputation
 from baton.packet import ArtifactRef, Baton, Decision, Kind
 from baton.plan import Estimate, estimate, reachable_from
 from baton.reputation import AgentRecord, Reputation, from_tallies, from_traces
@@ -72,6 +73,9 @@ __all__ = [
     "TraceSink",
     # pre-flight
     "plan", "estimate", "reachable_from", "Estimate",
+    # should this workload be routed at all? the crossover rule, validated
+    # 30/30 against a frozen sweep — see baton/crossover.py
+    "crossover", "Crossover", "StaticPath",
     # evidence about the agents themselves
     "reputation", "Reputation", "AgentRecord", "from_traces", "from_tallies",
     # failures

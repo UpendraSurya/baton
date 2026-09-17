@@ -162,6 +162,38 @@ Nobody wrote that route. The agents chose it.
 
 Try it: `python3 examples/smoke_gemini.py` (needs `GEMINI_API_KEY`, costs ~$0.004).
 
+## Should you route at all?
+
+Letting agents choose the next agent is not free: every decision is a model
+call, and a router that misreads the task fails a job a fixed path would have
+finished. At zero path variance — every job needs the same agents — a fixed
+path is optimal and routing is pure overhead. So the honest question is not
+"is routing better" but "**where** does it start to pay", and that has a closed
+form with no fitted parameters. `baton.crossover` computes it from a task log:
+
+```python
+from baton import crossover
+
+c = crossover.estimate(
+    paths=[{"researcher", "writer"}, {"writer"}, {"researcher", "writer", "editor"}],
+    perception_accuracy=0.88,   # P(a routed run succeeds) — measure it, never guess
+    price_ratio=3.6,            # one specialist hop / one routing call
+)
+print(c.render())
+# rho* = 1.56   binding fixed path: ['writer'] ...
+# at rho=3.60: routed 9.32 vs fixed 10.80 per successful task  ->  verdict: route
+```
+
+The rule — routing beats the best fixed path iff `price_ratio > rho*` — predicted
+the empirical cost-per-success winner in **30 of 30** cells of a frozen 620-item
+sweep (five variance levels × six price ratios), with every input measured and
+none fitted. It says two things worth knowing before you adopt any routing
+framework: a homogeneous workload should keep its DAG, and embedded routing —
+where the decision rides on the work call, so a hop costs several routing calls —
+sits on the routing side of the crossover for any workload where a quarter or
+more of jobs leave the common path. `docs/measuring-dynamic-routing.md` has the
+measurements this rests on and their caveats.
+
 ## Why not LangGraph
 
 LangGraph gives you a graph and asks you to draw the edges. baton deletes the
@@ -288,6 +320,48 @@ If you need a real control, the enforced bounds are the ones in
 [The stop rules](#the-stop-rules): `agent_pool`, `AgentSpec.can_hand_to`,
 `budget_ceiling_usd`, `max_hops`, `max_wall_seconds`, `max_dispatch_seconds`.
 Do not read `security_tier` as one of them.
+
+## Security & observability posture
+
+Nothing below is new work. This section maps mechanisms that already run — most
+of them since [The stop rules](#the-stop-rules) and [What's proven](#whats-proven)
+above — against two external frameworks people ask about, so the honest answer
+doesn't have to be reconstructed from source each time.
+
+### Identity & trust — OWASP Top 10 for Agentic Applications (2026, ASI01–ASI10)
+
+| Risk | Status | What |
+|---|---|---|
+| ASI01 Agent Goal Hijack | partial gap | `Baton.goal` is not validated against the run's original `Charter.brief` — a compromised hop can set any goal text a legal target will act on |
+| ASI02 Tool Misuse & Exploitation | N/A | baton brokers no tools itself; `Dispatch` is opaque to whatever the host does inside it |
+| ASI03 Identity & Privilege Abuse | **mitigated** | `Baton.from_agent` is always assigned by the runtime (`agent.name`), never taken from model output — a compromised agent cannot claim to be a different one. Privilege is `AgentSpec.can_hand_to ∩ Charter.agent_pool`, enforced before a decision is accepted |
+| ASI04 Agentic Supply Chain | **mitigated** | `dependencies = []`, `tests/test_isolation.py` fails the build the moment that changes, and separately walks every import with `ast` |
+| ASI05 Unexpected Code Execution | N/A | baton executes no code itself |
+| ASI06 Memory & Context Poisoning | N/A today | would become live only if a memory/history feature were ever added — `render_prompt` currently sends none |
+| ASI07 Insecure Inter-Agent Comms | N/A today | the one shipped adapter (`baton.adapters.company_os`) is an in-process function call, not a network protocol |
+| ASI08 Cascading Failures | partial | `max_hops`/`budget_ceiling_usd` bound how far a bad decision can propagate; nothing distinguishes a legal-but-wrong chain from a legal-and-right one |
+| ASI09 Human-Agent Trust Exploitation | real gap | no approval step exists between a `RATIFY` and delivery — arguably the host's job, not the kernel's |
+| ASI10 Rogue Agents | partial | the whitelist and the ten-terminal-reason guarantee bound the blast radius of a rogue agent; nothing detects legal-but-malicious behaviour mid-run |
+
+### The guardian layer
+
+- `Charter` is `@dataclass(frozen=True)` — `acceptance_criteria` cannot move once
+  a run has started, so the gate can't be talked into lowering the bar.
+- The gate agent is the only role permitted to end a run — enforced by role,
+  not convention (`RoleViolation` if a worker uses a gate-only verb or vice versa).
+- `ratified_without_deliverable` and `ratified_without_coverage` check the
+  artifact set mechanically. A gate saying "looks good" is not itself a delivery.
+
+### Evals & observability
+
+- Every run ends in exactly one of `TERMINAL_REASONS` (ten). There is no path
+  out of the loop that returns "it just stopped."
+- `rationale` is recorded on every `Baton` and every `Decision`, and rendered
+  into the *next* prompt ("Why you:") — not just logged, causally visible to
+  the next agent.
+- `TraceSink` is the documented seam for a real observability stack. A hosted
+  trace UI is a deliberate non-goal — competing with an existing observability
+  product is not this library's job.
 
 ## Testing
 

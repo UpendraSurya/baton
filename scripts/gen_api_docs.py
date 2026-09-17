@@ -25,7 +25,8 @@ GROUPS = [
                            "CharterInvalid", "IllegalTarget", "DispatchResult"]),
     ("Prompts", ["render_prompt", "render_routing_contract", "repair_nudge"]),
     ("Traces", ["MemoryTrace", "JsonlTrace", "TraceSink"]),
-    ("Planning", ["estimate", "Estimate", "reachable_from"]),
+    ("Planning", ["estimate", "Estimate", "reachable_from",
+                  "crossover", "Crossover", "StaticPath"]),
     ("Reputation", ["Reputation", "AgentRecord", "from_traces", "from_tallies"]),
     ("Metadata", ["__version__"]),
 ]
@@ -85,6 +86,14 @@ def render() -> str:
                     out += ["```", ""]
             elif callable(obj):
                 out += ["```python", sig(obj), "```", ""]
+            elif inspect.ismodule(obj):
+                # Never repr a module. `repr(module)` is
+                # "<module 'baton.crossover' from '/Users/<name>/.../crossover.py'>",
+                # so the generating machine's absolute home path gets baked into a
+                # committed file — a leak the publication audit blocks on, and one
+                # that would differ per machine and churn the drift check anyway.
+                # The dotted name is the same everywhere.
+                out += [f"`{obj.__name__}`", ""]
             else:
                 out += [f"`{obj!r}`", ""]
             p = first_para(obj)
