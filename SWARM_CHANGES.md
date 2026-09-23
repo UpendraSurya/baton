@@ -475,3 +475,44 @@ completion, at a cost similar to a supervisor.
 simulation compares patterns, not libraries, and any library can add
 validators.
 
+---
+
+## 10. Design notes: deterministic contracts and the "range setter" (not implemented)
+
+`docs/contracts-design.md` records a proposal; no code has been written for it.
+
+**The idea:** let the AI do the fuzzy work, and add a small deterministic layer
+that decides what is allowed out.
+
+**Example:** in an ETL pipeline, `unlimited` must become `999`. An AI may
+instead produce `X`, leave `unlimited` unchanged, or produce `null`, and all
+three are silent failures.
+
+**Three layers:**
+1. Deterministic rules first; the AI sees only the leftovers.
+2. Declarative contracts: `forbid`, `in_range`, `one_of`, `no_new_nulls`,
+   `unchanged_except`, `maps`.
+3. Refuse loudly, with a named reason.
+
+**The range setter:**
+- **floor:** with contracts on, the worst outcome is "refused", never
+  "silently wrong", whichever provider runs;
+- **ceiling:** the share handled by rules, plus the AI's first-try pass rate;
+- **reported per run:** the refusal rate by contract, the retry rate, and
+  escapes estimated by sampling.
+
+**Proposed API:**
+- a `baton.contracts` module;
+- a `normalize` step before any AI call;
+- the gate runs the contracts before it may ratify;
+- a standalone `verify()` usable from any framework. This is the adoption
+  wedge.
+
+The file also covers **provider variability**:
+- baton's own evidence that the same code behaves completely differently on
+  different models;
+- how contracts make the floor independent of the provider;
+- OpenClaw's scale (reported ~386k stars, August 2026), its Gateway
+  architecture, and what made it big;
+- with sources.
+
