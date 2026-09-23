@@ -9,8 +9,8 @@
 > **Not merged** into `main`, and no pull request was opened.
 > **Commits:** `34d9649` (feat: `baton.swarm`) → `149955f` (bench + loop-free
 > credit) → `53102ba` (this file) → `caf6da9` (Thompson sampling and
-> Q-learning arms, `docs/rl-basics.md`) → the commit that updates this file
-> with section 8.
+> Q-learning arms, `docs/rl-basics.md`) → `f18ec4a` (routing patterns
+> landscape + `bench/patterns.py`, section 9).
 > **Size:** 12 files changed plus this one, +1531 / −2 lines. Still no runtime
 > dependencies.
 
@@ -391,3 +391,87 @@ only):
 **Suggested next experiment:** swarm or Thompson keyed on `(label, tried)`,
 combining Q-learning's state with swarm's forgetting. It is exercise 2 in
 `docs/rl-basics.md`.
+
+---
+
+## 9. Round 3: how baton compares with other orchestration libraries (commit `f18ec4a`)
+
+**Question asked:** list every routing and handoff method, say which library
+uses which, and find where baton is honestly better.
+
+**New files:**
+
+| file | what it is |
+|---|---|
+| `docs/patterns-landscape.md` | 10 patterns; mapping to 8 libraries with sources; what baton ships that the others don't by default (and the reverse); simulation results; the claims the evidence supports; a draft LinkedIn post |
+| `bench/patterns.py` | a $0 simulation of 9 patterns in one world (uniform and systematic misreads) |
+| `bench/results/patterns.md` | its output |
+| `tests/test_patterns_bench.py` | 6 fairness tests: same tickets, shared budget, no-verifier patterns always claim success, determinism, and "with no stubs, baton == supervisor" |
+
+**The 10 patterns:**
+
+1. sequential
+2. conditional router
+3. concurrent fan-out
+4. loop
+5. round-robin chat
+6. selector group chat
+7. supervisor / agents-as-tools
+8. peer handoff
+9. magentic / ledger orchestrator
+10. event-driven
+
+**Libraries mapped** (checked against their documentation, September 2026):
+
+| library | patterns |
+|---|---|
+| LangGraph | 1, 2, 4, 7, 8 |
+| OpenAI Agents SDK | 7, 8 |
+| AutoGen | 1–6, 8, 9 |
+| CrewAI | 1, 2, 7, 10 |
+| Google ADK | 1, 3, 4, 7, 8 |
+| Microsoft Agent Framework / Semantic Kernel | 1, 3, 6, 8, 9 |
+| LlamaIndex | 8, 10 |
+| Strands | 1, 2, 7, 8 |
+
+**Name clash:** `langgraph-swarm`, AutoGen `Swarm`, Strands Swarm and OpenAI
+Swarm are all peer handoff, not swarm intelligence.
+
+**Simulation setup:** the same tickets, misread rate, worker quality (85%),
+LLM judge and 10-call budget for every pattern. The judge accepts good work /
+a plausible wrong answer / a stub at 0.95 / 0.15 / 0.30. The one asymmetry is
+baton's real behaviour: its gate refuses stubs mechanically.
+
+**Results, uniform world, 5,000 tickets:**
+
+| pattern | delivered | silent failures | calls per delivery |
+|---|---|---|---|
+| sequential | 28.3% | 71.7% | 3.53 |
+| conditional | 63.6% | 36.4% | 3.14 |
+| concurrent | 80.3% | 19.7% | 4.98 |
+| round-robin | **94.4%** | **2.9%** | 4.97 |
+| group chat | 88.7% | 8.3% | **3.80** |
+| supervisor | 87.6% | 8.1% | 4.84 |
+| peer handoff | 70.7% | 29.3% | 3.05 |
+| **baton** | 89.1% | 5.7% | 4.88 |
+| baton + swarm | 88.5% | 5.8% | 4.91 |
+
+**Findings:**
+
+- Baton has the fewest silent failures of the patterns that route to one agent
+  at a time.
+- Round-robin delivers more, but every agent works every round.
+- Group chat is cheaper per delivery.
+- Swarm adds nothing in this world.
+- The sensitivity sweep shows the silent-failure gap is **zero** when agents
+  never fake completion, and grows with stub rate and judge leniency (up to
+  5.6% vs 9.5%).
+
+**Honest claim for public posts:** baton's mechanical ratification checks
+reduce silent failures (tasks reported done that were not) when agents fake
+completion, at a cost similar to a supervisor.
+
+**Not claimable:** faster, cheaper, or better than any named library. The
+simulation compares patterns, not libraries, and any library can add
+validators.
+
