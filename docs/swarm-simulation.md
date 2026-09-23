@@ -1,7 +1,13 @@
 # The trail-aware arm, in simulation
 
-*7 arms · 5 scenarios · 300 tickets × 5 seeds each · 52,500 runs through the real
+*9 arms · 5 scenarios · 300 tickets × 5 seeds each · 67,500 runs through the real
 runtime · $0 · `python3 bench/swarm_sim.py` · September 2026*
+
+> **Update:** two rival learners were added after this page was first written:
+> Thompson sampling (a bandit) and tabular Q-learning (reinforcement learning).
+> See [Swarm against a bandit and an RL router](#swarm-against-a-bandit-and-an-rl-router)
+> below, and [rl-basics.md](rl-basics.md) for how both work. The seven original
+> arms' numbers are unchanged, because the pairing is deterministic.
 
 This is the next step named in the README: put a trail-aware arm (`baton.swarm`)
 beside the existing `static`, `dynamic` and `reputation` arms and measure it. It
@@ -109,6 +115,30 @@ compared per ticket with an exact McNemar test.
   because the old rule made `note()` state something false. A model reading
   that note would be told a misroute had delivered, and a library whose
   guarantee is "a claim must point at something real" cannot ship that.
+
+## Swarm against a bandit and an RL router
+
+Swarm was the first learning method tried here. The
+fair question is whether a textbook method does better. Both rivals read only
+the trace, exactly as swarm does, and both run with untuned defaults.
+
+| scenario | swarm | thompson | q-learning | thompson vs swarm | q-learning vs swarm |
+|---|---|---|---|---|---|
+| homogeneous | **98.2%** | 97.2% | 93.1% | +14/−29, p=0.032 | +9/−86, p<0.001 |
+| mixed | 79.1% | 76.3% | **80.9%** | +97/−139, p=0.007 | +126/−99, p=0.083 |
+| systematic | 84.9% | 84.9% | **87.5%** | +120/−120, p=1.000 | +111/−71, p=0.004 |
+| misled | 80.8% | 81.7% | **84.5%** | +164/−150, p=0.463 | +150/−94, p<0.001 |
+| drift (2nd half) | 82.1% | **82.3%** | 74.3% | +67/−86, p=0.145 (full run) | +57/−114, p<0.001 (full run) |
+
+- **Thompson sampling ties or loses against swarm.** Swarm is not a lucky pick.
+- **Q-learning wins when misreads are systematic** (+2.6 and +3.7 points).
+  Its state includes *which desks were already tried*, so it learns re-routes
+  separately from first picks.
+- **Q-learning loses on `homogeneous` and `drift`**, because fixed ε-greedy
+  exploration and one-step-at-a-time unlearning are expensive there.
+- **No learner wins everywhere.** The obvious next experiment is swarm or
+  Thompson keyed on `(label, tried)`: Q-learning's state with swarm's
+  forgetting. It is exercise 2 in [rl-basics.md](rl-basics.md).
 
 ## What would change this verdict
 

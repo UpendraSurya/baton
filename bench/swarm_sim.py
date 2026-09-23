@@ -7,7 +7,7 @@ model is simulated; the charter, the guards, the parser and the stop rules are
 not. It asks the question the trail-aware arm was built for, in the one setting
 where it can be answered for free: a gate that KNOWS the right answer.
 
-    python3 bench/swarm_sim.py                     # 4 scenarios x 7 arms, ~1 min
+    python3 bench/swarm_sim.py                     # 5 scenarios x 9 arms, ~30 s
     python3 bench/swarm_sim.py -n 60 --seeds 1     # smoke
     python3 bench/swarm_sim.py --out bench/results/swarm_sim.md
 
@@ -32,6 +32,16 @@ The arms differ ONLY in how intake picks a desk
                  heuristic term; re-routes by the same rule over untried desks
     swarm-flat   one Colony for everything (no context key)
     swarm-cold   swarm with no prior (beta=0): trails only
+    thompson     a Beta(successes, failures) per (label, desk), prior desk
+                 seeded with pseudo-successes, discounted so it can follow
+                 drift; pick = argmax of one sample from each (a bandit)
+    q-learning   tabular Q-learning over states (label, desks already tried):
+                 reward +1 for a delivery, minus a cost per desk tried,
+                 TD targets bootstrap from the next state; epsilon-greedy
+
+The two learners above read only the trace, exactly as swarm does: which desks
+intake handed to, in order, and which one (if any) the run was ratified from.
+docs/rl-basics.md walks through both with this file as the running example.
 
 Pairing: ticket i's class, perceived label and every work-quality draw are
 seeded by (seed, i), identical in every arm. Only the router's own choices and
@@ -78,7 +88,18 @@ MAX_HOPS = 6
 # docs/swarm-simulation.md before reading anything into one value.
 PRIOR_OTHERS = 0.2
 ARMS = ("static", "oracle", "dynamic", "reputation", "swarm", "swarm-flat",
-        "swarm-cold")
+        "swarm-cold", "thompson", "q-learning")
+
+# Thompson: pseudo-successes given to the prior desk before any evidence, and
+# the per-observation discount that lets old counts fade (1.0 = never forget).
+TS_PRIOR = 2.0
+TS_DISCOUNT = 0.97
+# Q-learning: learning rate, exploration rate, discount between re-route steps,
+# and the cost charged per desk tried, in units of one delivery.
+Q_LR = 0.1
+Q_EPSILON = 0.1
+Q_GAMMA = 0.9
+Q_STEP_COST = 0.1
 # The wall-clock guard spawns a thread per dispatch; it bounds real providers
 # and cannot fire on an in-process stub. Everything that decides a routing
 # outcome — whitelist, reject cap, cycle, hops, budget, coverage — stays on.
@@ -174,6 +195,102 @@ GOOD = (ArtifactRef("reply.md", "reply", content="A resolved reply. " * 10),
 
 # --- routers ----------------------------------------------------------------------
 
+def episode(records: list) -> tuple[list, str]:
+    """(desks intake handed to, in order; the desk the run was ratified from,
+    or "") — read from the trace, never from the simulator's hidden state."""
+    picks = [r["to"] for r in records if r.get("event") == "decision"
+             and r.get("agent") == "intake" and r.get("decision") == "HANDOFF"]
+    edges, reason, _ = swarm.edges_of(records)
+    delivered = ""
+    if reason == "ratified":
+        for src, dst in swarm.loop_free(edges):
+            if src == "intake":
+                delivered = dst
+    return picks, delivered
+
+
+class Thompson:
+    """Beta-Bernoulli Thompson sampling, one arm per (label, desk).
+
+    Belief about desk d for label L: Beta(a, b), where a counts deliveries and
+    b counts misroutes. To choose, draw one sample from each desk's Beta and
+    take the largest. An uncertain desk has a wide Beta, so it sometimes draws
+    high and gets tried — exploration falls out of the uncertainty itself, with
+    no epsilon or floor to tune."""
+
+    def __init__(self, rng: random.Random):
+        self.rng = rng
+        self.ab: dict[tuple[str, str], list[float]] = {}
+
+    def _belief(self, label: str, desk: str) -> list[float]:
+        seed = TS_PRIOR if desk == PRIOR[label] else 0.0
+        return self.ab.setdefault((label, desk), [1.0 + seed, 1.0])
+
+    def pick(self, label: str, options: list[str]) -> str:
+        draws = {d: self.rng.betavariate(*self._belief(label, d)) for d in options}
+        return max(options, key=lambda d: (draws[d], d))
+
+    def learn(self, label: str, records: list) -> None:
+        picks, delivered = episode(records)
+        # Discount: every belief for this label drifts back toward its prior,
+        # so evidence from long ago counts for less (non-stationary bandit).
+        for (lab, desk), ab in self.ab.items():
+            if lab == label:
+                base = 1.0 + (TS_PRIOR if desk == PRIOR[lab] else 0.0)
+                ab[0] = base + (ab[0] - base) * TS_DISCOUNT
+                ab[1] = 1.0 + (ab[1] - 1.0) * TS_DISCOUNT
+        for desk in dict.fromkeys(picks):
+            self._belief(label, desk)[0 if desk == delivered else 1] += 1.0
+
+
+class QRouter:
+    """Tabular Q-learning. State = (label, desks already tried); action = the
+    next desk. Q(s, a) estimates total future reward from taking a in s.
+
+    After an episode, each step is updated toward its TD target:
+        delivered here:   r = 1 - cost                    (terminal)
+        run ended here:   r = -cost                       (terminal)
+        misroute:         r = -cost + gamma * max_a' Q(s', a')
+    so the value of a first pick includes what re-routing from there is worth.
+    Updates run last step first, so one episode's delivery reaches its first
+    pick immediately rather than over several episodes."""
+
+    def __init__(self, rng: random.Random):
+        self.rng = rng
+        self.q: dict[tuple, float] = {}
+
+    def _q(self, label: str, tried: tuple, desk: str) -> float:
+        key = (label, frozenset(tried), desk)
+        if key not in self.q:
+            # The model's reading of the ticket as an initial estimate.
+            self.q[key] = 0.5 if desk == PRIOR[label] else 0.0
+        return self.q[key]
+
+    def pick(self, label: str, tried: list[str], options: list[str]) -> str:
+        if self.rng.random() < Q_EPSILON:
+            return self.rng.choice(options)
+        vals = {d: self._q(label, tuple(tried), d) for d in options}
+        best = max(vals.values())
+        return self.rng.choice([d for d in options if vals[d] == best])
+
+    def learn(self, label: str, records: list) -> None:
+        picks, delivered = episode(records)
+        for i in reversed(range(len(picks))):
+            tried, desk = tuple(picks[:i]), picks[i]
+            if desk == delivered:
+                target = 1.0 - Q_STEP_COST
+            elif i == len(picks) - 1:
+                target = -Q_STEP_COST
+            else:
+                nxt = tuple(picks[:i + 1])
+                rest = [d for d in DESKS if d not in nxt] or list(DESKS)
+                target = -Q_STEP_COST + Q_GAMMA * max(
+                    self._q(label, nxt, d) for d in rest)
+            key = (label, frozenset(tried), desk)
+            self.q[key] = self._q(label, tried, desk) + Q_LR * (
+                target - self._q(label, tried, desk))
+
+
 class Router:
     """How intake picks a desk. `learn` sees every finished run of this arm."""
 
@@ -182,6 +299,8 @@ class Router:
         self.colonies: dict[str, swarm.Colony] = {}
         self.history: list[list[dict]] = []
         self.rep = reputation.from_tallies({}, {})
+        self.ts = Thompson(rng)
+        self.ql = QRouter(rng)
 
     def _colony(self, label: str) -> swarm.Colony:
         key = "*" if self.arm == "swarm-flat" else label
@@ -195,6 +314,10 @@ class Router:
             return self.modal
         if self.arm == "oracle":
             return right if right in options else self.rng.choice(options)
+        if self.arm == "thompson":
+            return self.ts.pick(label, options)
+        if self.arm == "q-learning":
+            return self.ql.pick(label, tried, options)
         prior = PRIOR[label]
         if self.arm in ("dynamic", "reputation"):
             if not tried and prior in options:
@@ -213,6 +336,10 @@ class Router:
     def learn(self, label: str, records: list[dict]) -> None:
         if self.arm.startswith("swarm"):
             self._colony(label).observe(records)
+        elif self.arm == "thompson":
+            self.ts.learn(label, records)
+        elif self.arm == "q-learning":
+            self.ql.learn(label, records)
         elif self.arm == "reputation":
             self.history.append(records)
             if len(self.history) % 10 == 0:
