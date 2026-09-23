@@ -516,3 +516,22 @@ The file also covers **provider variability**:
   architecture, and what made it big;
 - with sources.
 
+---
+
+## 11. Growth plan (notes, not code)
+
+`docs/growth-plan.md` is the launch plan for making the repo grow.
+
+It covers:
+- the seven traits repos that blow up share;
+- where baton stands against each one;
+- a six-step plan:
+  1. repositioning as "your agents can't lie about being done";
+  2. a "caught a fake done" demo GIF;
+  3. `verify()` plus an adapter;
+  4. going public and publishing on PyPI;
+  5. a same-day launch led by the honest measurement story;
+  6. two weeks of fast responses;
+- realistic expectations;
+- a checklist.
+
