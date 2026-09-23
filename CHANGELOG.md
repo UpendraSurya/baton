@@ -21,6 +21,12 @@ this project uses [Semantic Versioning].
   seven router policies through the real runtime with an oracle gate, across
   five scenarios, with exact McNemar tests. Results and caveats in
   `docs/swarm-simulation.md`; invariants held by `tests/test_swarm_sim.py`.
+- **Two rival learner arms in `bench/swarm_sim.py`:** `thompson`
+  (Beta-Bernoulli Thompson sampling per label and desk, discounted for drift)
+  and `q-learning` (tabular Q-learning over label plus desks already tried,
+  TD targets, ε-greedy). Both learn only from trace records.
+  `docs/rl-basics.md` teaches bandits, explore/exploit, TD learning and credit
+  assignment using them.
 - **`baton.crossover`** — a pre-flight that answers "should this workload be
   routed at all?" from a task log, a measured perception accuracy and the
   hop-to-routing-call price ratio. Returns the threshold `rho*` and a verdict.

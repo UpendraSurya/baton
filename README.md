@@ -242,6 +242,10 @@ bench/swarm_sim.py`). Short form: on one ticket class keep the graph; with
 honest noise, learning barely helps (+1.9 points, p = 0.045); when the prior is
 systematically wrong or the right desk moves, the trail-aware arm beats blind
 dynamic by 6–15 points at p < 0.001, while the reputation arm does not.
+Two textbook rivals run in the same benchmark: Thompson sampling ties or
+loses against swarm, and tabular Q-learning wins when misreads are systematic
+but loses on drift. [docs/rl-basics.md](docs/rl-basics.md) teaches both,
+using baton as the example.
 Whether trail notes improve delivery when a *model* reads them is **not
 proven** — see below.
 
