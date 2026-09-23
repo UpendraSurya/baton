@@ -234,8 +234,16 @@ halfway, the odds flatten back toward uniform, and the colony finds the new one:
  51-60   docs               8/10   0.03 / 0.03 / 0.93
 ```
 
-That is a simulated environment with a gate that knows the answer. Whether
-trail notes improve delivery on real work is **not proven** — see below.
+That is a simulated environment with a gate that knows the answer. The
+seven-arm version of it — static, blind dynamic, reputation, three swarm
+variants and an oracle, 52,500 paired runs, $0 — is
+[docs/swarm-simulation.md](docs/swarm-simulation.md) (`python3
+bench/swarm_sim.py`). Short form: on one ticket class keep the graph; with
+honest noise, learning barely helps (+1.9 points, p = 0.045); when the prior is
+systematically wrong or the right desk moves, the trail-aware arm beats blind
+dynamic by 6–15 points at p < 0.001, while the reputation arm does not.
+Whether trail notes improve delivery when a *model* reads them is **not
+proven** — see below.
 
 ## Why not LangGraph
 

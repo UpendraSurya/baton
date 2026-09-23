@@ -8,8 +8,12 @@ currently is. This module keeps a trail per edge the way an ant colony keeps
 pheromone on a path (Dorigo's Ant System; AntNet applied it to packet routing):
 
     every observed run:   trail  <-  (1 - evaporation) * trail
-    a RATIFIED run:       trail  +=  deposit / hops     on each edge it took
-    any other run:        trail  <-  (1 - penalty) * trail   on each edge it took
+    a RATIFIED run:       trail  +=  deposit / hops     on each edge of its
+                                                        loop-free route
+    any other edge taken: trail  <-  (1 - penalty) * trail
+
+The loop-free route is ant routing's loop elimination: a run that misrouted,
+was sent back and re-routed is credited only for the route that delivered.
 
 Three properties fall out, and they are the reason to use this over a
 counter:
@@ -98,7 +102,9 @@ _ROUTING = ("HANDOFF", "PROPOSE_DONE", "REJECT")
 class Trail:
     """One edge's evidence. `strength` is the recency-weighted signal a router
     samples on; `runs` and `ratified` are the raw counts a reader can check it
-    against, and they never decay."""
+    against, and they never decay. `ratified` counts runs this edge DELIVERED
+    by — on the loop-free route of a ratified run — not merely runs it
+    appeared in."""
 
     src: str
     dst: str
@@ -146,6 +152,33 @@ def edges_of(records: Iterable[Mapping[str, object]]) -> tuple[list[tuple[str, s
             h = r.get("hops")
             hops = h if isinstance(h, int) else 0
     return edges, reason, hops
+
+
+def loop_free(edges: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """The route a run actually delivered by, with every detour cut out.
+
+    Ant routing's loop elimination: walk the agents in the order the baton
+    visited them, and whenever one reappears, drop everything since its last
+    visit. intake, docs, gate, intake, engineering, gate becomes intake,
+    engineering, gate (the misroute is gone); intake, engineering, gate,
+    engineering, gate becomes intake, engineering, gate (the rework loop is
+    gone, the correct handoff stays). Only edges the run really took are
+    returned — a gap where the runtime moved the baton is never bridged.
+    """
+    nodes: list[str] = []
+
+    def visit(name: str) -> None:
+        if name in nodes:
+            del nodes[nodes.index(name) + 1:]
+        else:
+            nodes.append(name)
+
+    for src, dst in edges:
+        if not nodes or nodes[-1] != src:
+            visit(src)
+        visit(dst)
+    taken = set(edges)
+    return [e for e in zip(nodes, nodes[1:]) if e in taken]
 
 
 class Colony:
@@ -200,11 +233,16 @@ class Colony:
                 del self._strength[edge]
             else:
                 self._strength[edge] = s
-        ok = reason == "ratified"
+        # Only the loop-free route earns credit. A ratified run that went
+        # intake -> docs, was sent back, then intake -> engineering was
+        # delivered BY engineering; rewarding intake -> docs as well would
+        # teach the colony the misroute. Abandoned detours are penalised
+        # like a failed run's edges.
+        credited = set(loop_free(edges)) if reason == "ratified" else set()
         share = self.deposit / max(1, hops, len(edges))
         for edge in set(edges):
             self._runs[edge] = self._runs.get(edge, 0) + 1
-            if ok:
+            if edge in credited:
                 self._ratified[edge] = self._ratified.get(edge, 0) + 1
                 self._strength[edge] = self._strength.get(edge, 0.0) + share
             elif edge in self._strength:
@@ -360,7 +398,7 @@ def from_reputation(rep: Mapping[str, object], *, unknown: float) -> Callable[[s
     return eta
 
 
-__all__ = ["Colony", "Trail", "edges_of", "from_traces", "from_reputation",
+__all__ = ["Colony", "Trail", "edges_of", "loop_free", "from_traces", "from_reputation",
            "DEFAULT_EVAPORATION", "DEFAULT_DEPOSIT", "DEFAULT_PENALTY",
            "DEFAULT_EXPLORE",
            "DEFAULT_MIN_RUNS", "DEFAULT_NOTE_LIMIT"]

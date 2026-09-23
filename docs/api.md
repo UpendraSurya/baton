@@ -372,7 +372,7 @@ runs: int
 ratified: int
 ```
 
-One edge's evidence. `strength` is the recency-weighted signal a router samples on; `runs` and `ratified` are the raw counts a reader can check it against, and they never decay.
+One edge's evidence. `strength` is the recency-weighted signal a router samples on; `runs` and `ratified` are the raw counts a reader can check it against, and they never decay. `ratified` counts runs this edge DELIVERED by — on the loop-free route of a ratified run — not merely runs it appeared in.
 
 ## Metadata
 

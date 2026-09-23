@@ -15,6 +15,12 @@ this project uses [Semantic Versioning].
   turns rework rates into the heuristic term. Advisory only — `can_hand_to` is
   never touched. Unfinished traces are skipped, not scored as failures.
   `examples/swarm_routing.py` shows adaptation after the right route changes.
+  Credit goes to a ratified run's **loop-free route** only (`swarm.loop_free`),
+  so a misroute that was sent back is never counted as a delivery.
+- **`bench/swarm_sim.py`** — a tier-1 ($0, deterministic) paired benchmark of
+  seven router policies through the real runtime with an oracle gate, across
+  five scenarios, with exact McNemar tests. Results and caveats in
+  `docs/swarm-simulation.md`; invariants held by `tests/test_swarm_sim.py`.
 - **`baton.crossover`** — a pre-flight that answers "should this workload be
   routed at all?" from a task log, a measured perception accuracy and the
   hop-to-routing-call price ratio. Returns the threshold `rho*` and a verdict.

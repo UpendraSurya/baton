@@ -102,7 +102,37 @@ class Learning(unittest.TestCase):
     def test_a_gate_reject_is_a_routing_edge_too(self):
         c = swarm.Colony()
         c.observe(trace([("w", DONE, ""), ("gate", REJECT, "w"), ("w", DONE, "")]))
-        self.assertEqual(c.trail("gate", "w").ratified, 1)
+        # Taken and counted — but it was the rework loop, not the delivery.
+        self.assertEqual((c.trail("gate", "w").runs, c.trail("gate", "w").ratified),
+                         (1, 0))
+
+    def test_a_misroute_in_a_ratified_run_is_not_credited(self):
+        # intake -> docs, sent back, intake -> engineering, ratified.
+        # engineering delivered; docs must not learn that it did.
+        c = swarm.Colony()
+        c.observe(trace([("intake", HANDOFF, "docs"), ("docs", DONE, ""),
+                         ("gate", REJECT, "intake"),
+                         ("intake", HANDOFF, "engineering"), ("engineering", DONE, "")]))
+        self.assertEqual(c.trail("intake", "docs").ratified, 0)
+        self.assertEqual(c.trail("intake", "docs").strength, 0.0)
+        self.assertEqual(c.trail("intake", "engineering").ratified, 1)
+        self.assertGreater(c.trail("intake", "engineering").strength, 0)
+
+    def test_rework_keeps_credit_on_the_right_handoff(self):
+        # The right desk, sent back once for quality: the route was right.
+        c = swarm.Colony()
+        c.observe(trace([("intake", HANDOFF, "engineering"), ("engineering", DONE, ""),
+                         ("gate", REJECT, "engineering"), ("engineering", DONE, "")]))
+        self.assertEqual(c.trail("intake", "engineering").ratified, 1)
+        self.assertEqual(c.trail("engineering", "gate").ratified, 1)
+        self.assertEqual(c.trail("gate", "engineering").ratified, 0)
+
+    def test_loop_free_never_bridges_a_gap(self):
+        # The runtime moved the baton between these two decisions (an
+        # escalation); there is no a -> c edge to invent.
+        self.assertEqual(swarm.loop_free([("a", "b"), ("c", "gate")]),
+                         [("a", "b"), ("c", "gate")])
+        self.assertNotIn(("b", "c"), swarm.loop_free([("a", "b"), ("c", "gate")]))
 
     def test_bad_parameters_are_refused(self):
         for kw in ({"evaporation": 0}, {"evaporation": 1.5}, {"deposit": 0},
