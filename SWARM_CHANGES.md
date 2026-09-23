@@ -535,3 +535,31 @@ It covers:
 - realistic expectations;
 - a checklist.
 
+---
+
+## 12. Structured routing: opt-in "roads" (design only, not implemented)
+
+`docs/structured-routing-design.md` records the plan for supporting linear and
+branched paths without becoming a hand-drawn-graph library.
+
+**Three step modes:**
+
+| mode | expressed as |
+|---|---|
+| fixed | a one-entry `can_hand_to` |
+| branch | a code rule, later |
+| dynamic | today's behaviour |
+
+**Opt-in only:**
+- `swarm.suggest_roads(traces, min_runs, confidence)` only reads, and suggests
+  which handoffs have proved themselves (using the Wilson lower bound on
+  loop-free credit);
+- `tips.apply(agents, only=[...])` returns a new agents dict;
+- the same function flags roads to unfix when rejections rise.
+
+**What stays the same:** the default behaviour, and the gate, ratify checks and
+stop rules on every mode.
+
+**The file also includes** the test plan and a "roads" benchmark arm to build
+later.
+
