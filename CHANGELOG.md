@@ -27,6 +27,13 @@ this project uses [Semantic Versioning].
   TD targets, ε-greedy). Both learn only from trace records.
   `docs/rl-basics.md` teaches bandits, explore/exploit, TD learning and credit
   assignment using them.
+- **`bench/patterns.py` and `docs/patterns-landscape.md`**: ten agent-routing
+  patterns mapped to the libraries that ship them (with sources), and a $0
+  simulation of nine of them in one world with a shared fallible judge and call
+  budget. It reports delivery, reported success, silent failures and calls per
+  delivery, plus a sensitivity sweep showing baton's silent-failure advantage
+  exists only when agents fake completion. `tests/test_patterns_bench.py`
+  holds the fairness properties.
 - **`baton.crossover`** — a pre-flight that answers "should this workload be
   routed at all?" from a task log, a measured perception accuracy and the
   hop-to-routing-call price ratio. Returns the threshold `rho*` and a verdict.
