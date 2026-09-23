@@ -8,7 +8,9 @@
 > **Base:** `main` @ `6e87539`
 > **Not merged** into `main`, and no pull request was opened.
 > **Commits:** `34d9649` (feat: `baton.swarm`) → `149955f` (bench + loop-free
-> credit) → the commit that adds this file.
+> credit) → `53102ba` (this file) → `caf6da9` (Thompson sampling and
+> Q-learning arms, `docs/rl-basics.md`) → the commit that updates this file
+> with section 8.
 > **Size:** 12 files changed plus this one, +1531 / −2 lines. Still no runtime
 > dependencies.
 
@@ -297,6 +299,64 @@ reputation $0.0059, **swarm $0.0048**, oracle $0.0033.
 
 ---
 
+## 8. Round 2: Thompson sampling and Q-learning (commit `caf6da9`)
+
+This round asked whether a textbook method beats swarm. Two rival arms were
+added to `bench/swarm_sim.py`. Both learn only from trace records, via
+`episode(records)`, which returns (intake's picks in order, the delivering
+desk or "").
+
+| arm | method | key settings |
+|---|---|---|
+| `thompson` | Beta-Bernoulli Thompson sampling per (label, desk). Choose = argmax of one Beta sample per desk | `TS_PRIOR = 2` pseudo-successes for the prior desk; `TS_DISCOUNT = 0.97` per observation (memory of about 33 tickets per label) |
+| `q-learning` | tabular Q-learning. State = (label, frozenset of desks tried); action = next desk | `Q_LR = 0.1`, `Q_EPSILON = 0.1`, `Q_GAMMA = 0.9`, `Q_STEP_COST = 0.1`; reward +1 per delivery; Q initialised to 0.5 for the prior desk; updates run backward over the episode |
+
+**TD targets:**
+
+| case | target |
+|---|---|
+| delivered | `1 − cost` |
+| last pick, nothing delivered | `−cost` |
+| misroute | `−cost + γ · max Q(next state)` |
+
+**Results** (300 tickets × 5 seeds, untuned; the drift row is the second half
+only):
+
+| scenario | swarm | thompson | q-learning | thompson vs swarm | q-learning vs swarm |
+|---|---|---|---|---|---|
+| homogeneous | **98.2%** | 97.2% | 93.1% | +14/−29, p=0.032 | +9/−86, p<0.001 |
+| mixed | 79.1% | 76.3% | **80.9%** | +97/−139, p=0.007 | +126/−99, p=0.083 |
+| systematic | 84.9% | 84.9% | **87.5%** | +120/−120, p=1.000 | +111/−71, p=0.004 |
+| misled | 80.8% | 81.7% | **84.5%** | +164/−150, p=0.463 | +150/−94, p<0.001 |
+| drift (2nd half) | 82.1% | **82.3%** | 74.3% | +67/−86, p=0.145 | +57/−114, p<0.001 |
+
+(The drift McNemar tests use the full run.)
+
+**Findings:**
+
+- Thompson sampling ties or loses against swarm, so swarm is not a lucky pick.
+- Q-learning wins when misreads are systematic. Its state includes which desks
+  were already tried, so it learns re-routes separately from first picks.
+- Q-learning loses on homogeneous and drift. Fixed ε-greedy exploration is
+  costly, and it unlearns one step at a time.
+- No learner wins everywhere.
+- The seven original arms' numbers are unchanged, because pairing is
+  deterministic.
+
+**New and changed files:**
+
+| file | status | what it is |
+|---|---|---|
+| `bench/swarm_sim.py` | modified | `episode()`, `Thompson`, `QRouter`, 9 arms |
+| `tests/test_swarm_sim.py` | modified | +5 tests: trace parsing, Beta update, prior overridden by evidence, both TD target cases |
+| `docs/rl-basics.md` | new | a teaching guide: RL vocabulary mapped to baton, explore/exploit, bandits and Thompson sampling, Q-learning and TD targets, credit assignment, results, 5 exercises, reading list |
+| `docs/swarm-simulation.md` | modified | 9-arm header and a "Swarm against a bandit and an RL router" section |
+| `README.md`, `CHANGELOG.md` | modified | notes on the new arms |
+
+**Suggested next experiment:** swarm or Thompson keyed on `(label, tried)`,
+combining Q-learning's state with swarm's forgetting. It is exercise 2 in
+`docs/rl-basics.md`.
+
 ## 6. How to verify (all $0, offline)
 
 ```bash
@@ -304,7 +364,7 @@ git checkout mobile-branch
 bash verify.sh --fast                               # full gate; expected: VERIFY: PASS
 PYTHONPATH=src python3 -m unittest tests.test_swarm tests.test_swarm_sim
 python3 examples/swarm_routing.py                   # adaptation demo
-python3 bench/swarm_sim.py                          # ~20 s; reproduces bench/results/swarm_sim.md
+python3 bench/swarm_sim.py                          # ~30 s, 9 arms; reproduces bench/results/swarm_sim.md
 python3 bench/swarm_sim.py --prior 0.5              # sensitivity
 ```
 
