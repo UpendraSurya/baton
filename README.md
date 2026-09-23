@@ -194,6 +194,49 @@ sits on the routing side of the crossover for any workload where a quarter or
 more of jobs leave the common path. `docs/measuring-dynamic-routing.md` has the
 measurements this rests on and their caveats.
 
+## Routing that learns from its own runs — `baton.swarm`
+
+`reputation` scores agents; a router's real choice is an **edge** — "from here,
+hand to whom?" `baton.swarm` keeps a trail per edge the way an ant colony keeps
+pheromone on a path (Ant System / AntNet): a ratified run lays `deposit / hops`
+on each handoff it took, a failed run erodes its edges by `penalty`, and every
+observed run evaporates every trail a little. Shorter deliveries reinforce
+harder, stale routes fade without anyone deciding when to forget, and an
+absolute exploration floor keeps every legal agent reachable so the colony can
+re-discover a route when the right answer changes.
+
+```python
+from baton import run, swarm
+
+colony = swarm.Colony()                  # evaporation=0.1, penalty=0.3, explore=0.05
+for records in past_traces:              # oldest first — order is evaporation
+    colony.observe(records)
+
+agents = colony.annotate(agents)         # "handing to docs ratified in 28 of 35 past runs"
+result = run(charter, agents, dispatch)
+colony.observe_result(result)            # this run feeds the next
+
+colony.weights("intake", {"refunds", "engineering", "docs"})   # p(next) over legal moves
+colony.choose("intake", {...}, rng)      # sample it, for a code-driven router
+swarm.from_reputation(rep, unknown=0.5)  # rework rates as the ACO heuristic term
+```
+
+It is **advisory**: nothing in it touches `can_hand_to`, so the whitelist, the
+validation and all ten stop rules bound a colony-guided run exactly as they
+bound any other. `python3 examples/swarm_routing.py` ($0, offline) shows the
+dynamics — intake learns which desk resolves tickets, the right desk changes
+halfway, the odds flatten back toward uniform, and the colony finds the new one:
+
+```
+   runs  right desk routed right   p(refunds/engineering/docs)
+ 31-40   refunds            9/10   0.94 / 0.03 / 0.03
+ 41-50   docs               0/10   0.33 / 0.33 / 0.33
+ 51-60   docs               8/10   0.03 / 0.03 / 0.93
+```
+
+That is a simulated environment with a gate that knows the answer. Whether
+trail notes improve delivery on real work is **not proven** — see below.
+
 ## Why not LangGraph
 
 LangGraph gives you a graph and asks you to draw the edges. baton deletes the
@@ -264,6 +307,12 @@ re-running this one, is in
 want agents to route themselves anyway, [What's proven](#whats-proven) above
 is the envelope that makes it safe to try — it just is not, itself, evidence
 that you should prefer it to a graph you drew yourself.
+
+The same holds for `baton.swarm`. Its tests prove the trail arithmetic and
+that a colony tracks a changing route in simulation; they say nothing about
+whether a model reading "handing to docs ratified in 28 of 35 past runs"
+routes better. It is an instrument for that experiment — a trail-aware arm
+beside `reputation` — not its result.
 
 ## Known limitations
 

@@ -28,6 +28,7 @@ GROUPS = [
     ("Planning", ["estimate", "Estimate", "reachable_from",
                   "crossover", "Crossover", "StaticPath"]),
     ("Reputation", ["Reputation", "AgentRecord", "from_traces", "from_tallies"]),
+    ("Swarm routing", ["swarm", "Colony", "Trail"]),
     ("Metadata", ["__version__"]),
 ]
 

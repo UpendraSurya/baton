@@ -41,10 +41,11 @@ from baton.contract import (parse_decision, render_prompt,
                             validate_decision)
 from baton.errors import (BatonError, CharterInvalid, IllegalTarget,
                           ParseFailure, RoleViolation, TraceCorrupt)
-from baton import crossover, plan, reputation
+from baton import crossover, plan, reputation, swarm
 from baton.packet import ArtifactRef, Baton, Decision, Kind
 from baton.plan import Estimate, estimate, reachable_from
 from baton.reputation import AgentRecord, Reputation, from_tallies, from_traces
+from baton.swarm import Colony, Trail
 from baton.runtime import (TERMINAL_REASONS, Dispatch, DispatchResult, Guards,
                            RunResult, run)
 from baton.trace import MemoryTrace, Trace, TraceSink
@@ -78,6 +79,9 @@ __all__ = [
     "crossover", "Crossover", "StaticPath",
     # evidence about the agents themselves
     "reputation", "Reputation", "AgentRecord", "from_traces", "from_tallies",
+    # routing memory per EDGE: handoff trails that ratified runs reinforce and
+    # every run erodes — advisory, never widens a whitelist; see baton/swarm.py
+    "swarm", "Colony", "Trail",
     # failures
     "BatonError", "CharterInvalid", "IllegalTarget", "ParseFailure",
     "RoleViolation", "TraceCorrupt",

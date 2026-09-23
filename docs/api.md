@@ -1,6 +1,6 @@
 # API reference
 
-Every name in `baton.__all__` (43 of them). Generated from the source by `scripts/gen_api_docs.py` — if you add a public symbol and do not regenerate, `verify.sh` fails.
+Every name in `baton.__all__` (46 of them). Generated from the source by `scripts/gen_api_docs.py` — if you add a public symbol and do not regenerate, `verify.sh` fails.
 
 ## Running a job
 
@@ -349,6 +349,30 @@ from_tallies(runs: 'Mapping[str, int]', revisions: 'Mapping[str, int]', *, min_r
 ```
 
 Build a Reputation from two counts: pieces of work produced per agent, and pieces of that work that came back for rework.
+
+## Swarm routing
+
+### `swarm`
+
+`baton.swarm`
+
+baton.swarm — stigmergic routing memory: handoff trails that runs reinforce and time erodes.
+
+### `Colony`
+
+Per-edge trails over a team of agents, updated one observed run at a time.
+
+### `Trail`
+
+```python
+src: str
+dst: str
+strength: float
+runs: int
+ratified: int
+```
+
+One edge's evidence. `strength` is the recency-weighted signal a router samples on; `runs` and `ratified` are the raw counts a reader can check it against, and they never decay.
 
 ## Metadata
 

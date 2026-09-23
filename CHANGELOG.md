@@ -6,6 +6,15 @@ this project uses [Semantic Versioning].
 ## [Unreleased]
 
 ### Added
+- **`baton.swarm`** — stigmergic routing memory. A `Colony` keeps a trail per
+  handoff edge (Ant System style): ratified runs deposit `deposit / hops` on the
+  edges they took, failed runs erode theirs by `penalty`, every run evaporates
+  all trails. `weights()` / `choose()` give the transition probabilities over a
+  whitelist with an absolute exploration floor (MMAS tau_min); `note()` /
+  `annotate()` put counted route history into personas; `from_reputation()`
+  turns rework rates into the heuristic term. Advisory only — `can_hand_to` is
+  never touched. Unfinished traces are skipped, not scored as failures.
+  `examples/swarm_routing.py` shows adaptation after the right route changes.
 - **`baton.crossover`** — a pre-flight that answers "should this workload be
   routed at all?" from a task log, a measured perception accuracy and the
   hop-to-routing-call price ratio. Returns the threshold `rho*` and a verdict.
