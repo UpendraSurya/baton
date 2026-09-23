@@ -299,6 +299,41 @@ reputation $0.0059, **swarm $0.0048**, oracle $0.0033.
 
 ---
 
+## 6. How to verify (all $0, offline)
+
+```bash
+git checkout mobile-branch
+bash verify.sh --fast                               # full gate; expected: VERIFY: PASS
+PYTHONPATH=src python3 -m unittest tests.test_swarm tests.test_swarm_sim
+python3 examples/swarm_routing.py                   # adaptation demo
+python3 bench/swarm_sim.py                          # ~30 s, 9 arms; reproduces bench/results/swarm_sim.md
+python3 bench/swarm_sim.py --prior 0.5              # sensitivity
+```
+
+Last verified state:
+
+| check | result |
+|---|---|
+| `verify.sh --fast` | 10 passed, 0 failed |
+| full unittest suite | OK (32 skipped, as before this work) |
+| ruff on new files | clean |
+| `bench/results/swarm_sim.md` | reproduced byte-identical except the timing line |
+| mypy | only error is in `trace.py:83`, which was already there before this work |
+
+---
+
+## 7. Suggested next steps
+
+1. **Tier-2 A/B test:** the same model, with and without `colony.annotate()`
+   notes, on a heterogeneous corpus. Pre-register the stop rule, as for
+   EMBED-1.
+2. **Investigate the `misled` drop** after loop-free credit (84.5% → 80.8%).
+3. **Add a scenario with a fallible gate** (false ratifications) to measure how
+   badly trails can be misled.
+4. **Per-ticket desk quality**, to test the limits of per-label trails.
+
+---
+
 ## 8. Round 2: Thompson sampling and Q-learning (commit `caf6da9`)
 
 This round asked whether a textbook method beats swarm. Two rival arms were
@@ -356,36 +391,3 @@ only):
 **Suggested next experiment:** swarm or Thompson keyed on `(label, tried)`,
 combining Q-learning's state with swarm's forgetting. It is exercise 2 in
 `docs/rl-basics.md`.
-
-## 6. How to verify (all $0, offline)
-
-```bash
-git checkout mobile-branch
-bash verify.sh --fast                               # full gate; expected: VERIFY: PASS
-PYTHONPATH=src python3 -m unittest tests.test_swarm tests.test_swarm_sim
-python3 examples/swarm_routing.py                   # adaptation demo
-python3 bench/swarm_sim.py                          # ~30 s, 9 arms; reproduces bench/results/swarm_sim.md
-python3 bench/swarm_sim.py --prior 0.5              # sensitivity
-```
-
-Last verified state:
-
-| check | result |
-|---|---|
-| `verify.sh --fast` | 10 passed, 0 failed |
-| full unittest suite | OK (32 skipped, as before this work) |
-| ruff on new files | clean |
-| `bench/results/swarm_sim.md` | reproduced byte-identical except the timing line |
-| mypy | only error is in `trace.py:83`, which was already there before this work |
-
----
-
-## 7. Suggested next steps
-
-1. **Tier-2 A/B test:** the same model, with and without `colony.annotate()`
-   notes, on a heterogeneous corpus. Pre-register the stop rule, as for
-   EMBED-1.
-2. **Investigate the `misled` drop** after loop-free credit (84.5% → 80.8%).
-3. **Add a scenario with a fallible gate** (false ratifications) to measure how
-   badly trails can be misled.
-4. **Per-ticket desk quality**, to test the limits of per-label trails.
