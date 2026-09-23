@@ -246,6 +246,16 @@ Two textbook rivals run in the same benchmark: Thompson sampling ties or
 loses against swarm, and tabular Q-learning wins when misreads are systematic
 but loses on drift. [docs/rl-basics.md](docs/rl-basics.md) teaches both,
 using baton as the example.
+
+**How baton compares with other orchestration libraries.**
+[docs/patterns-landscape.md](docs/patterns-landscape.md) maps ten routing
+patterns to the libraries that ship them (LangGraph, OpenAI Agents SDK,
+AutoGen, CrewAI, Google ADK, Microsoft Agent Framework, LlamaIndex, Strands),
+with sources. It also simulates all of them in one world (`python3
+bench/patterns.py`, $0). Among patterns that route to one agent at a time,
+baton's mechanical ratification checks gave the fewest silent failures, but
+only when agents fake completion; round-robin delivers more and group chat
+costs less.
 Whether trail notes improve delivery when a *model* reads them is **not
 proven** — see below.
 
